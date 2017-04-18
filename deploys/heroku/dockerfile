@@ -1,0 +1,5 @@
+FROM influx6/midash
+
+MAINTAINER Alexander Ewetumo <trinoxf@gmail.com>
+
+CMD ["/bin/midash"]

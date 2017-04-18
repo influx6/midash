@@ -1,0 +1,13 @@
+FROM influx6/midash
+
+MAINTAINER Alexander Ewetumo <trinoxf@gmail.com>
+
+# Setup a user, so we run as non-root
+RUN adduser -D myuser
+USER myuser 
+
+# Expose the application port
+ENV PORT 7080
+EXPOSE 7080
+
+CMD ["/bin/midash"]
