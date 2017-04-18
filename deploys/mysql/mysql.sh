@@ -28,23 +28,37 @@ else
   cat << EOF > $tfile
 USE mysql;
 FLUSH PRIVILEGES;
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY "$MYSQL_ROOT_PASSWORD" WITH GRANT OPTION;
-GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;
-UPDATE user SET password=PASSWORD("") WHERE user='root' AND host='localhost';
 EOF
+
+  echo "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '$MYSQL_ROOT_PASSWORD' WITH GRANT OPTION;" >> $tfile
+  echo "GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;" >> $tfile
+  echo "UPDATE user SET password=PASSWORD('') WHERE user='root' AND host='localhost';" >> $tfile
+
+  if [ "$MYSQL_USER" != "" ]; then
+    echo "[i] Creating user: $MYSQL_USER with password $MYSQL_PASSWORD"
+    echo "CREATE USER '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';" >> $tfile
+    echo "CREATE USER '$MYSQL_USER'@'localhost' IDENTIFIED BY '$MYSQL_PASSWORD';" >> $tfile
+    echo "CREATE USER '$MYSQL_USER'@'::1' IDENTIFIED BY '$MYSQL_PASSWORD';" >> $tfile
+    # echo "UPDATE user SET password=PASSWORD('$MYSQL_PASSWORD') WHERE user='$MYSQL_USER' AND host='localhost';" >> $tfile
+    # echo "UPDATE user SET password=PASSWORD('$MYSQL_PASSWORD') WHERE user='$MYSQL_USER' AND host='%';" >> $tfile
+  fi
+
 
   if [ "$MYSQL_DATABASE" != "" ]; then
     echo "[i] Creating database: $MYSQL_DATABASE"
-    echo "CREATE DATABASE IF NOT EXISTS \`$MYSQL_DATABASE\` CHARACTER SET utf8 COLLATE utf8_general_ci;" >> $tfile
-
-    if [ "$MYSQL_USER" != "" ]; then
-      echo "[i] Creating user: $MYSQL_USER with password $MYSQL_PASSWORD"
-      echo "GRANT ALL ON \`$MYSQL_DATABASE\`.* to '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';" >> $tfile
-    fi
+    echo "CREATE DATABASE IF NOT EXISTS $MYSQL_DATABASE CHARACTER SET utf8 COLLATE utf8_general_ci;" >> $tfile
+    echo "GRANT ALL PRIVILEGES ON $MYSQL_DATABASE.* TO '$MYSQL_USER'@'%' IDENTIFIED BY '$MYSQL_PASSWORD';" >> $tfile
+    echo "GRANT ALL PRIVILEGES ON $MYSQL_DATABASE.* TO '$MYSQL_USER'@'localhost' IDENTIFIED BY '$MYSQL_PASSWORD';" >> $tfile
   fi
 
-  /usr/bin/mysqld --user=root --bootstrap --verbose=0 < $tfile
-  rm -f $tfile
+  # /usr/bin/mysqld --user=root --bootstrap --verbose=0 < $tfile 
+  /usr/share/mysql/mysql.server start 
+  mysql -uroot < $tfile
+  # rm -f $tfile
+
+  echo "Done setting up mysql!"
+  exit 0
 fi
 
-exec /usr/bin/mysqld --user=root --console
+# exec /usr/bin/mysqld --user=root --console 
+/usr/share/mysql/mysql.server start

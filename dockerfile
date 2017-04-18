@@ -5,3 +5,10 @@ WORKDIR  /
 
 COPY .docker_build/midash /bin/midash
 RUN chmod +x /bin/midash
+
+COPY migrations /migrations
+
+COPY scripts/midash.sh /bin/midash-bin
+RUN chmod +x /bin/midash-bin
+
+CMD ["midash-bin"]

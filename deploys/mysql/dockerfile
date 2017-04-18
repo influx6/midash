@@ -5,7 +5,7 @@ MAINTAINER Ewetumo Alexander <trinoxf@gmail.com>
 RUN mkdir /db
 VOLUME /db
 
-RUN apk add --update mysql mysql-client && rm -f /var/cache/apk/*
+RUN apk add --update openrc mysql mysql-client && rm -f /var/cache/apk/*
 
 # Copy mysql configuration to the etc folder.
 COPY mysql.cnf /etc/mysql/my.cnf
