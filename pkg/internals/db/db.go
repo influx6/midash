@@ -16,6 +16,12 @@ const (
 	updateTemplate     = "UPDATE %s SET %s WHERE %s=%s"
 )
 
+// DB defines an interface which exposes a method to return a new
+// underline sql.Database.
+type DB interface {
+	New() (*sqlx.DB, error)
+}
+
 // TableIdentity defines an interface which exposes a method returning table name
 // associated with the giving implementing structure.
 type TableIdentity interface {
@@ -25,6 +31,7 @@ type TableIdentity interface {
 // TableFields defines an interface which exposes method to return a map of all data
 // associated with the defined structure.
 type TableFields interface {
+	TableIdentity
 	Fields() map[string]interface{}
 }
 
@@ -36,7 +43,7 @@ type TableConsumer interface {
 
 // Save takes the giving table name with the giving fields and attempts to save this giving
 // data appropriately into the giving db.
-func Save(db *sqlx.DB, table TableIdentity, fields TableFields) error {
+func Save(db *sqlx.DB, fields TableFields) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -44,9 +51,10 @@ func Save(db *sqlx.DB, table TableIdentity, fields TableFields) error {
 
 	fieldNames := FieldNames(fields)
 
-	query := fmt.Sprintf(insertTemplate, table.Table(), FieldNameMarkers(fieldNames), FieldMarkers(len(fieldNames)))
+	query := fmt.Sprintf(insertTemplate, fields.Table(), FieldNameMarkers(fieldNames), FieldMarkers(len(fieldNames)))
 
-	if _, err := db.Exec(query, FieldValues(fieldNames, fields)...); err != nil {
+	values := FieldValues(fieldNames, fields)
+	if _, err := db.Exec(query, values...); err != nil {
 		return err
 	}
 
@@ -57,7 +65,7 @@ func Save(db *sqlx.DB, table TableIdentity, fields TableFields) error {
 // data appropriately into the giving db.
 // index - defines the string which should identify the key to be retrieved from the fields to target the
 // data to be updated in the db.
-func Update(db *sqlx.DB, table TableIdentity, fields TableFields, index string) error {
+func Update(db *sqlx.DB, fields TableFields, index string) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -76,7 +84,7 @@ func Update(db *sqlx.DB, table TableIdentity, fields TableFields, index string) 
 
 	fieldNames := FieldNamesFromMap(tableFields)
 
-	query := fmt.Sprintf(updateTemplate, table.Table(), FieldMarkers(len(fieldNames)), index, indexValue)
+	query := fmt.Sprintf(updateTemplate, fields.Table(), FieldMarkers(len(fieldNames)), index, indexValue)
 	if _, err := db.Exec(query, FieldValues(fieldNames, fields)...); err != nil {
 		return err
 	}
@@ -88,7 +96,8 @@ func Update(db *sqlx.DB, table TableIdentity, fields TableFields, index string) 
 func GetAll(db *sqlx.DB, table TableIdentity) ([]map[string]interface{}, error) {
 	var fields []map[string]interface{}
 
-	if err := db.Select(&fields, selectAllTemplate); err != nil {
+	query := fmt.Sprint(selectAllTemplate, table)
+	if err := db.Select(&fields, query); err != nil {
 		return nil, err
 	}
 
