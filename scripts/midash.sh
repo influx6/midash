@@ -3,8 +3,8 @@ mysql-start
 
 echo "------------------------------START MIGRATIONS------------------------"
 
-echo "Attempting to use mysql for User: $MYSQL_USER BY Password: $MYSQL_PASSWORD"
+echo "Attempting to use mysql with User: $MYSQL_USER"
 cat /migrations/migrations.sql | mysql --user=$MYSQL_USER --password=$MYSQL_PASSWORD
 
 echo "------------------------------START APP------------------------"
-midash
+midash 
