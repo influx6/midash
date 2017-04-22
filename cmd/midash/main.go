@@ -10,7 +10,7 @@ import (
 
 	"github.com/dimfeld/httptreemux"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/gu-io/midash/pkg/controllers" // loads up the go mysql driver.
+	"github.com/gu-io/midash/pkg/handlers" // loads up the go mysql driver.
 	"github.com/influx6/faux/sink"
 	"github.com/influx6/faux/sink/sinks"
 	"github.com/jmoiron/sqlx"
@@ -73,14 +73,13 @@ func main() {
 
 	// Get the App port.
 	port := os.Getenv(PortEnv)
-
-	addr := ":" + port
+	addr := fmt.Sprintf(":%s", port)
 
 	var dj djDB
 
 	tree := httptreemux.New()
 
-	users := controllers.Users{DB: dj, Log: log}
+	users := handlers.Users{DB: dj, Log: log}
 
 	tree.Handle("GET", fmt.Sprintf("/%s", version), welcome(version))
 	tree.Handle("POST", fmt.Sprintf("/%s/user", version), users.CreateUser)
@@ -88,13 +87,15 @@ func main() {
 	cm := make(chan os.Signal, 1)
 	signal.Notify(cm, os.Interrupt)
 
-	srv := &http.Server{Addr: port, Handler: tree}
+	srv := &http.Server{Addr: addr, Handler: tree}
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			log.Emit(sinks.Error("Failed to start server: %+q", err).With("addr", addr))
 		}
 	}()
+
+	log.Emit(sinks.Info("HTTP server started").With("addr", addr))
 
 	<-cm
 	log.Emit(sinks.Info("Shutting down server").With("addr", addr))

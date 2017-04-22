@@ -51,14 +51,20 @@ EOF
     echo "GRANT ALL PRIVILEGES ON $MYSQL_DATABASE.* TO '$MYSQL_USER'@'localhost' IDENTIFIED BY '$MYSQL_PASSWORD';" >> $tfile
   fi
 
-  # /usr/bin/mysqld --user=root --bootstrap --verbose=0 < $tfile 
-  /usr/share/mysql/mysql.server start 
-  mysql -uroot < $tfile
-  # rm -f $tfile
+  if [ "$MYSQL_DAEMONIZE" == "true" ]; then 
+    /usr/share/mysql/mysql.server start 
+    mysql -uroot < $tfile
+  else 
+    exec /usr/bin/mysqld --user=root --bootstrap --console --verbose=0 < $tfile 
+  fi
 
+  # rm -f $tfile
   echo "Done setting up mysql!"
   exit 0
 fi
 
-# exec /usr/bin/mysqld --user=root --console 
-/usr/share/mysql/mysql.server start
+if [ "$MYSQL_DAEMONIZE" == "true" ]; then 
+  /usr/share/mysql/mysql.server start
+else 
+  exec /usr/bin/mysqld --user=root --console 
+fi

@@ -1,4 +1,4 @@
-RUNENV := PORT=3000 API_VERSION=v1 MYSQL_PORT="5880" MYSQL_USER="dbUser" MYSQL_DATABASE="midash" MYSQL_PASSWORD="!thunder#bot" APP_DEV=dev
+RUNENV := PORT=3000 API_VERSION=v1 MYSQL_PORT="5880" MYSQL_USER="dbUser" MYSQL_DATABASE="midash" APP_DEV=dev MYSQL_PASSWORD="!thunder\#bot" 
 ROOT= $(shell pwd)
 RMD= $(ROOT)/../..
 
@@ -11,6 +11,5 @@ clean:
 boot:
 	docker run --env-file vars.env -d $(USER)/midash-dev
 
-local:
-	build
+local: build
 	$(RUNENV) go run $(RMD)/cmd/midash/main.go

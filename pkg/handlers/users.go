@@ -1,10 +1,10 @@
-package controllers
+package handlers
 
 import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/gu-io/midash/pkg/internals/db"
+	"github.com/gu-io/midash/pkg/db"
 	"github.com/gu-io/midash/pkg/internals/models/user"
 	"github.com/gu-io/midash/pkg/internals/utils"
 	"github.com/influx6/faux/sink"
