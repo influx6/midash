@@ -5,13 +5,15 @@ import (
 	"net/http"
 
 	"github.com/gu-io/midash/pkg/internals/db"
-	"github.com/gu-io/midash/pkg/internals/user"
+	"github.com/gu-io/midash/pkg/internals/models/user"
 	"github.com/gu-io/midash/pkg/internals/utils"
+	"github.com/influx6/faux/sink"
 )
 
 // Users exposes a central handle for which requests are served to all requests.
 type Users struct {
-	DB db.DB
+	DB  db.DB
+	Log sink.Sink
 }
 
 // CreateUser handles receiving requests to create a user from the server.

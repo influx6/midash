@@ -17,7 +17,6 @@ type Session struct {
 	PublicID string    `json:"public_id"`
 	Token    string    `json:"token"`
 	Expires  time.Time `json:"expires"`
-	Created  time.Time `json:"created_at"`
 }
 
 // Table returns the given table which the given struct corresponds to.
@@ -54,32 +53,10 @@ func (u *Session) WithFields(fields map[string]interface{}) error {
 		}
 	}
 
-	if created, ok := fields["created_at"]; ok {
-		switch co := created.(type) {
-		case string:
-			t, err := time.Parse(timeFormat, co)
-			if err != nil {
-				return err
-			}
-
-			u.Created = t.UTC()
-		case time.Time:
-			u.Created = co.UTC()
-		}
-	}
-
 	return nil
 }
 
 // Fields returns a map representing the data of the user.
 func (u *Session) Fields() map[string]interface{} {
-	fields := structs.Map(u)
-
-	if u.Created.IsZero() {
-		delete(fields, "created_at")
-	} else {
-		fields["created_at"] = u.Created.UTC()
-	}
-
-	return fields
+	return structs.Map(u)
 }

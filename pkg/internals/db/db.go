@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 )
@@ -50,10 +51,13 @@ func Save(db *sqlx.DB, fields TableFields) error {
 	}
 
 	fieldNames := FieldNames(fields)
+	fieldNames = append(fieldNames, "created_at")
 
 	query := fmt.Sprintf(insertTemplate, fields.Table(), FieldNameMarkers(fieldNames), FieldMarkers(len(fieldNames)))
 
 	values := FieldValues(fieldNames, fields)
+	values = append(values, time.Now())
+
 	if _, err := db.Exec(query, values...); err != nil {
 		return err
 	}
@@ -72,6 +76,8 @@ func Update(db *sqlx.DB, fields TableFields, index string) error {
 	}
 
 	tableFields := fields.Fields()
+	tableFields["updated_at"] = time.Now()
+
 	indexValue, ok := tableFields[index]
 
 	// Given index was not found, return error.

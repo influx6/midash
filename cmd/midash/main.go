@@ -3,15 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
 	"github.com/dimfeld/httptreemux"
-	_ "github.com/go-sql-driver/mysql" // loads up the go mysql driver.
-	"github.com/gu-io/midash/pkg/controllers"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/gu-io/midash/pkg/controllers" // loads up the go mysql driver.
+	"github.com/influx6/faux/sink"
+	"github.com/influx6/faux/sink/sinks"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -21,9 +22,14 @@ const (
 	PortEnv       = "PORT"
 	APIVersionENV = "API_Version"
 	DBPortEnv     = "MYSQL_PORT"
+	DBIPEnv       = "MYSQL_IP"
 	DBUserEnv     = "MYSQL_USER"
 	DBDatabaseEnv = "MYSQL_DATABASE"
 	DBUserPassEnv = "MYSQL_PASSWORD"
+)
+
+var (
+	log = sink.New(sinks.Stdout{})
 )
 
 type djDB struct{}
@@ -33,12 +39,24 @@ type djDB struct{}
 func (djDB) New() (*sqlx.DB, error) {
 	user := os.Getenv(DBUserEnv)
 	userPass := os.Getenv(DBUserPassEnv)
-	// port := os.Getenv(DBPortEnv)
+	port := os.Getenv(DBPortEnv)
+	ip := os.Getenv(DBIPEnv)
 	dbName := os.Getenv(DBDatabaseEnv)
 
-	addr := fmt.Sprintf("%s:%s@/%s", user, userPass, dbName)
+	if ip == "" {
+		ip = "0.0.0.0"
+	}
+
+	addr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", user, userPass, ip, port, dbName)
 	db, err := sqlx.Connect("mysql", addr)
 	if err != nil {
+		log.Emit(sinks.Error("Failed to connect to SQLServer: %+q", err).WithFields(sink.Fields{
+			"mysql_ip":   ip,
+			"mysql_port": port,
+			"dbName":     dbName,
+			"user":       user,
+		}))
+
 		return nil, err
 	}
 
@@ -56,27 +74,30 @@ func main() {
 	// Get the App port.
 	port := os.Getenv(PortEnv)
 
-	var dj djDB
+	addr := ":" + port
 
-	users := controllers.Users{DB: dj}
+	var dj djDB
 
 	tree := httptreemux.New()
 
-	tree.Handle("POST", fmt.Sprintf("%s/user", version), users.CreateUser)
+	users := controllers.Users{DB: dj, Log: log}
+
+	tree.Handle("GET", fmt.Sprintf("/%s", version), welcome(version))
+	tree.Handle("POST", fmt.Sprintf("/%s/user", version), users.CreateUser)
 
 	cm := make(chan os.Signal, 1)
 	signal.Notify(cm, os.Interrupt)
 
-	srv := &http.Server{Addr: ":" + port, Handler: tree}
+	srv := &http.Server{Addr: port, Handler: tree}
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
-			log.Printf("listen: %s\n", err)
+			log.Emit(sinks.Error("Failed to start server: %+q", err).With("addr", addr))
 		}
 	}()
 
 	<-cm
-	log.Println("Shutting down server...")
+	log.Emit(sinks.Info("Shutting down server").With("addr", addr))
 
 	// shut down gracefully, but wait no longer than 5 seconds before halting
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -84,5 +105,12 @@ func main() {
 	defer cancel()
 	srv.Shutdown(ctx)
 
-	log.Println("Server gracefully stopped")
+	log.Emit(sinks.Info("Server gracefully stopped").With("addr", addr))
+}
+
+func welcome(version string) httptreemux.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request, _ map[string]string) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Welcome to midash version " + version))
+	}
 }
