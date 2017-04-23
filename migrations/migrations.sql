@@ -1,6 +1,6 @@
 use midash;
 
-create table user (
+create table users (
     id INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL,
     hash varchar(255) NOT NULL,
     email varchar(255) NOT NULL,
@@ -10,7 +10,7 @@ create table user (
     created_at timestamp NOT NULL
 );
 
-create table profile (
+create table profiles (
     id INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL,
     address text NOT NULL,
     user_id varchar(255) NOT NULL,
@@ -21,7 +21,7 @@ create table profile (
     created_at timestamp NOT NULL
 );
 
-create table session (
+create table sessions (
     id INTEGER PRIMARY KEY AUTO_INCREMENT NOT NULL,
     user_id varchar(255) NOT NULL,
     public_id varchar(255) NOT NULL,
