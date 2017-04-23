@@ -82,6 +82,7 @@ func main() {
 
 	users := handlers.Users{DB: dj, Log: log}
 
+	tree.Handle("GET", "/", index)
 	tree.Handle("GET", fmt.Sprintf("/%s", version), welcome(version))
 	tree.Handle("POST", fmt.Sprintf("/%s/user", version), users.CreateUser)
 
@@ -115,4 +116,9 @@ func welcome(version string) httptreemux.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Welcome to midash version " + version))
 	}
+}
+
+func index(w http.ResponseWriter, r *http.Request, _ map[string]string) {
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Welcome to midash"))
 }
