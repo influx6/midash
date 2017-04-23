@@ -1,9 +1,5 @@
 package session
 
-import (
-	"github.com/fatih/structs"
-)
-
 const (
 	tableName  = "profiles"
 	timeFormat = "Mon Jan 2 15:04:05 -0700 MST 2006"
@@ -49,7 +45,13 @@ func (u *Profile) WithFields(fields map[string]interface{}) error {
 	return nil
 }
 
-// Fields returns a map representing the data of the user.
+// Fields returns a map representing the data of the session.
 func (u *Profile) Fields() map[string]interface{} {
-	return structs.Map(u)
+	return map[string]interface{}{
+		"address":    u.Address,
+		"user_id":    u.UserID,
+		"first_name": u.FirstName,
+		"last_name":  u.LastName,
+		"public_id":  u.PublicID,
+	}
 }

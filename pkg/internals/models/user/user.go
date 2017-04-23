@@ -3,7 +3,6 @@ package user
 import (
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/fatih/structs"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -76,7 +75,7 @@ func (u *User) WithFields(fields map[string]interface{}) error {
 // SafeFields returns a map representing the data of the user with important
 // security fields removed.
 func (u *User) SafeFields() map[string]interface{} {
-	fields := structs.Map(u)
+	fields := u.Fields()
 
 	delete(fields, "hash")
 	delete(fields, "private_id")
@@ -86,5 +85,10 @@ func (u *User) SafeFields() map[string]interface{} {
 
 // Fields returns a map representing the data of the user.
 func (u *User) Fields() map[string]interface{} {
-	return structs.Map(u)
+	return map[string]interface{}{
+		"hash":       u.Hash,
+		"email":      u.Email,
+		"private_id": u.PrivateID,
+		"public_id":  u.PublicID,
+	}
 }
