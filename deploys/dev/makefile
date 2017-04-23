@@ -3,6 +3,8 @@ ROOT= $(shell pwd)
 RMD= $(ROOT)/../..
 
 build:
+	cd $(RMD)/ && make
+	cd $(ROOT)
 	docker build -t $(USER)/midash-dev ./
 
 clean:
