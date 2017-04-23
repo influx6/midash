@@ -84,7 +84,8 @@ func main() {
 
 	tree.Handle("GET", "/", index)
 	tree.Handle("GET", fmt.Sprintf("/%s", version), welcome(version))
-	tree.Handle("POST", fmt.Sprintf("/%s/user", version), users.CreateUser)
+
+	tree.Handle("POST", fmt.Sprintf("/%s/users", version), users.CreateUser)
 
 	cm := make(chan os.Signal, 1)
 	signal.Notify(cm, os.Interrupt)
