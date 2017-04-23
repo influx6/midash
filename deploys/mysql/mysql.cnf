@@ -1,5 +1,0 @@
-[mysqld]
-user = root
-datadir = /db/mysql
-port = 5880
-log-bin = /db/mysql/mysql-bin

@@ -2,18 +2,6 @@ FROM influx6/midash
 
 MAINTAINER Alexander Ewetumo <trinoxf@gmail.com>
 
-# Setup a user, so we run as non-root
-# RUN adduser -D myuser
-# USER myuser 
+EXPOSE 3000
 
-# Dont ever do this, far better to load such secret through a 
-# env files, but since this will be a plugic repo, then we will allow 
-# this here.
-ENV APP_DEV dev
-ENV MYSQL_PORT 5880
-ENV MYSQL_USER dbUser
-ENV MYSQL_DATABASE midash
-ENV MYSQL_PASSWORD !thunder#bot
-# ENV MYSQL_DAEMONIZE false
-
-CMD ["mysql-start"]
+CMD ["midash-bin"]

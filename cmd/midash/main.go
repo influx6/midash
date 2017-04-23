@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/dimfeld/httptreemux"
@@ -37,11 +38,11 @@ type djDB struct{}
 // New returns a new instance of a sqlx.DB connected to the db with the provided
 // credentials pulled from the host environment.
 func (djDB) New() (*sqlx.DB, error) {
-	user := os.Getenv(DBUserEnv)
-	userPass := os.Getenv(DBUserPassEnv)
-	port := os.Getenv(DBPortEnv)
-	ip := os.Getenv(DBIPEnv)
-	dbName := os.Getenv(DBDatabaseEnv)
+	user := strings.TrimSpace(os.Getenv(DBUserEnv))
+	userPass := strings.TrimSpace(os.Getenv(DBUserPassEnv))
+	port := strings.TrimSpace(os.Getenv(DBPortEnv))
+	ip := strings.TrimSpace(os.Getenv(DBIPEnv))
+	dbName := strings.TrimSpace(os.Getenv(DBDatabaseEnv))
 
 	if ip == "" {
 		ip = "0.0.0.0"
@@ -66,13 +67,13 @@ func (djDB) New() (*sqlx.DB, error) {
 func main() {
 
 	// Get API version.
-	version := os.Getenv(APIVersionENV)
+	version := strings.TrimSpace(os.Getenv(APIVersionENV))
 	if version == "" {
 		version = "v1"
 	}
 
 	// Get the App port.
-	port := os.Getenv(PortEnv)
+	port := strings.TrimSpace(os.Getenv(PortEnv))
 	addr := fmt.Sprintf(":%s", port)
 
 	var dj djDB
