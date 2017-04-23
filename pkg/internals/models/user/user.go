@@ -1,14 +1,17 @@
 package user
 
 import (
+	"errors"
+
 	"golang.org/x/crypto/bcrypt"
 
 	uuid "github.com/satori/go.uuid"
 )
 
 const (
-	tableName  = "users"
-	timeFormat = "Mon Jan 2 15:04:05 -0700 MST 2006"
+	hashComplexity = 10
+	tableName      = "users"
+	timeFormat     = "Mon Jan 2 15:04:05 -0700 MST 2006"
 )
 
 // User is a type defining the given user related fields for a given.
@@ -33,7 +36,7 @@ func New(nw NewUser) (*User, error) {
 	u.PrivateID = uuid.NewV4().String()
 
 	pass := []byte(u.PrivateID + ":" + nw.Password)
-	hash, err := bcrypt.GenerateFromPassword(pass, 20)
+	hash, err := bcrypt.GenerateFromPassword(pass, hashComplexity)
 	if err != nil {
 		return nil, err
 	}
@@ -59,14 +62,26 @@ func (u User) Table() string {
 func (u *User) WithFields(fields map[string]interface{}) error {
 	if email, ok := fields["email"].(string); ok {
 		u.Email = email
+	} else {
+		return errors.New("Expected 'email' key")
 	}
 
 	if public, ok := fields["public_id"].(string); ok {
 		u.PublicID = public
+	} else {
+		return errors.New("Expected 'public_id' key")
 	}
 
 	if private, ok := fields["private_id"].(string); ok {
 		u.PrivateID = private
+	} else {
+		return errors.New("Expected 'private_id' key")
+	}
+
+	if hash, ok := fields["hash"].(string); ok {
+		u.Hash = hash
+	} else {
+		return errors.New("Expected 'hash' key")
 	}
 
 	return nil

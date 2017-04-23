@@ -1,4 +1,4 @@
-package session
+package profile
 
 const (
 	tableName  = "profiles"

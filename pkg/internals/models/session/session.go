@@ -1,6 +1,7 @@
 package session
 
 import (
+	"errors"
 	"time"
 )
 
@@ -27,17 +28,23 @@ func (u Session) Table() string {
 func (u *Session) WithFields(fields map[string]interface{}) error {
 	if user, ok := fields["user_id"].(string); ok {
 		u.UserID = user
+	} else {
+		return errors.New("Expected 'user_id' key")
 	}
 
 	if public, ok := fields["public_id"].(string); ok {
 		u.PublicID = public
+	} else {
+		return errors.New("Expected 'public_id' key")
 	}
 
 	if token, ok := fields["token"].(string); ok {
 		u.Token = token
+	} else {
+		return errors.New("Expected 'token' key")
 	}
 
-	if expires, ok := fields["expires"]; ok {
+	if expires, ok := fields["expires"]; ok && expires != "" {
 		switch co := expires.(type) {
 		case string:
 			t, err := time.Parse(timeFormat, co)
