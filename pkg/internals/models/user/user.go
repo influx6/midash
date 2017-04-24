@@ -5,6 +5,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gu-io/midash/pkg/internals/models/profile"
 	uuid "github.com/satori/go.uuid"
 )
 
@@ -16,10 +17,11 @@ const (
 
 // User is a type defining the given user related fields for a given.
 type User struct {
-	Email     string `json:"email"`
-	PublicID  string `json:"public_id"`
-	PrivateID string `json:"private_id,omitempty"`
-	Hash      string `json:"hash,omitempty"`
+	Email     string           `json:"email"`
+	PublicID  string           `json:"public_id"`
+	PrivateID string           `json:"private_id,omitempty"`
+	Hash      string           `json:"hash,omitempty"`
+	Profile   *profile.Profile `json:"profile,omitempty"`
 }
 
 // UpdateUserPassword defines the set of data sent when updating a users password.

@@ -25,8 +25,17 @@ func (u Users) Delete(id string) error {
 		return err
 	}
 
+	defer dbi.Close()
+
 	var nu user.User
 	if err := db.Delete(u.Log, dbi, nu, "public_id", id); err != nil {
+		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
+		return err
+	}
+
+	// Add user profile.
+	profiles := Profiles{Log: u.Log, DB: u.DB}
+	if err = profiles.DeleteByUser(id); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
 		return err
 	}
@@ -44,9 +53,19 @@ func (u Users) Get(id string) (*user.User, error) {
 		return nil, err
 	}
 
+	defer dbi.Close()
+
 	var nu user.User
 
 	if err := db.Get(u.Log, dbi, nu, &nu, "public_id", id); err != nil {
+		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
+		return nil, err
+	}
+
+	// Add user profile.
+	profiles := Profiles{Log: u.Log, DB: u.DB}
+	nu.Profile, err = profiles.GetByUser(nu.PublicID)
+	if err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
 		return nil, err
 	}
@@ -63,6 +82,8 @@ func (u Users) GetByEmail(email string) (*user.User, error) {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_email": email}))
 		return nil, err
 	}
+
+	defer dbi.Close()
 
 	var nu user.User
 
@@ -99,6 +120,8 @@ func (u Users) GetAll(page, responsePerPage int) (UserRecords, error) {
 
 		return UserRecords{}, err
 	}
+
+	defer dbi.Close()
 
 	var nu user.User
 	records, realTotalRecords, err := db.GetAllPerPage(u.Log, dbi, nu, "asc", "public_id", page, responsePerPage)
@@ -151,7 +174,19 @@ func (u Users) Create(nw user.NewUser) (*user.User, error) {
 		return nil, err
 	}
 
+	defer dbi.Close()
+
 	if err := db.Save(u.Log, dbi, newUser); err != nil {
+		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"email": nw.Email}))
+		return nil, err
+	}
+
+	dbi.Close()
+
+	// Add user profile.
+	profiles := Profiles{Log: u.Log, DB: u.DB}
+	newUser.Profile, err = profiles.Create(newUser, nil)
+	if err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"email": nw.Email}))
 		return nil, err
 	}
@@ -202,6 +237,7 @@ func (u Users) UpdatePassword(nw user.UpdateUserPassword) error {
 
 		return err
 	}
+	defer dbi.Close()
 
 	var dbUser user.User
 
@@ -255,6 +291,7 @@ func (u Users) Update(nw user.UpdateUser) error {
 
 		return err
 	}
+	defer dbi.Close()
 
 	if err := db.Update(u.Log, dbi, nw, "public_id"); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{

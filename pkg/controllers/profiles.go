@@ -7,88 +7,23 @@ import (
 	"strconv"
 
 	"github.com/gu-io/midash/pkg/internals/handlers"
-	"github.com/gu-io/midash/pkg/internals/models/user"
+	"github.com/gu-io/midash/pkg/internals/models/profile"
 	"github.com/gu-io/midash/pkg/internals/utils"
 	"github.com/influx6/faux/sink"
 	"github.com/influx6/faux/sink/sinks"
 )
 
-// Users exposes a central handle for which requests are served to all requests.
-type Users struct {
-	handlers.Users
+// Profiles exposes a central handle for which requests are served to all requests.
+type Profiles struct {
+	handlers.Profiles
+	Users handlers.Users
 }
 
-// GetLimited handles receiving requests to get a user from the db but returns a limited view of the user data.
-// This is suited for when needing to respond to requests from non-authorized requests or wishing to exclude
-// security based fields (hash, private_id) from the response.
+// GetForUser handles receiving requests to get a user's profile from the backend.
 /* Service API
 	HTTP Method: GET
 	Request:
-		Path: /users/:user_id
-		Body: None
-
-   Response: (Success, 200)
-	Body:
-		{
-			"public_id":"",
-			"email":"",
-		}
-
-   Response: (Failure, 500)
-	Body:
-		{
-			"status":"",
-			"title":"",
-			"message":"",
-		}
-*/
-func (u Users) GetLimited(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	defer u.Log.Emit(sinks.Info("Get Existing User").WithFields(sink.Fields{
-		"remote": r.RemoteAddr,
-		"params": params,
-		"path":   r.URL.Path,
-	}).Trace("Users.Get").End())
-
-	publicID, ok := params["public_id"]
-	if !ok {
-		err := errors.New("Expected User `public_id` as param")
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"path":   r.URL.Path,
-			"remote": r.RemoteAddr,
-			"params": params,
-		}))
-
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read body", err), http.StatusInternalServerError)
-	}
-
-	nu, err := u.Users.Get(publicID)
-	if err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"path":   r.URL.Path,
-			"remote": r.RemoteAddr,
-			"params": params,
-		}))
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve user", err), http.StatusInternalServerError)
-	}
-
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(nu.SafeFields()); err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"path":   r.URL.Path,
-			"remote": r.RemoteAddr,
-			"params": params,
-		}))
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to return new user data", err), http.StatusInternalServerError)
-		return
-	}
-}
-
-// Get handles receiving requests to get a users from the db.
-/* Service API
-	HTTP Method: GET
-	Request:
-		Path: /admin/users/:user_id
+		Path: /admin/users/profile/:user_id
 		Body: None
 
    Response: (Success, 200)
@@ -108,16 +43,16 @@ func (u Users) GetLimited(w http.ResponseWriter, r *http.Request, params map[str
 			"message":"",
 		}
 */
-func (u Users) Get(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	defer u.Log.Emit(sinks.Info("Get Existing User").WithFields(sink.Fields{
+func (u Profiles) GetForUser(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	defer u.Log.Emit(sinks.Info("Get Existing Profile").WithFields(sink.Fields{
 		"remote": r.RemoteAddr,
 		"params": params,
 		"path":   r.URL.Path,
-	}).Trace("Users.Get").End())
+	}).Trace("Profiles.Get").End())
 
-	publicID, ok := params["public_id"]
+	userID, ok := params["user_id"]
 	if !ok {
-		err := errors.New("Expected User `public_id` as param")
+		err := errors.New("Expected Profile `UserID` as param")
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":   r.URL.Path,
 			"remote": r.RemoteAddr,
@@ -127,14 +62,80 @@ func (u Users) Get(w http.ResponseWriter, r *http.Request, params map[string]str
 		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read body", err), http.StatusInternalServerError)
 	}
 
-	nu, err := u.Users.Get(publicID)
+	nu, err := u.Profiles.GetByUser(userID)
 	if err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":   r.URL.Path,
 			"remote": r.RemoteAddr,
 			"params": params,
 		}))
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve user", err), http.StatusInternalServerError)
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve user's profile", err), http.StatusInternalServerError)
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(nu.Fields()); err != nil {
+		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"path":   r.URL.Path,
+			"remote": r.RemoteAddr,
+			"params": params,
+		}))
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to return new user data", err), http.StatusInternalServerError)
+		return
+	}
+}
+
+// Get handles receiving requests to get a users from the db.
+/* Service API
+	HTTP Method: GET
+	Request:
+		Path: /profiles/:public_id
+		Body: None
+
+   Response: (Success, 200)
+	Body:
+		{
+			"public_id":"",
+			"private_id":"",
+			"hash":"",
+			"email":"",
+		}
+
+   Response: (Failure, 500)
+	Body:
+		{
+			"status":"",
+			"title":"",
+			"message":"",
+		}
+*/
+func (u Profiles) Get(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	defer u.Log.Emit(sinks.Info("Get Existing Profile").WithFields(sink.Fields{
+		"remote": r.RemoteAddr,
+		"params": params,
+		"path":   r.URL.Path,
+	}).Trace("Profiles.Get").End())
+
+	publicID, ok := params["public_id"]
+	if !ok {
+		err := errors.New("Expected Profile `public_id` as param")
+		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"path":   r.URL.Path,
+			"remote": r.RemoteAddr,
+			"params": params,
+		}))
+
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read body", err), http.StatusInternalServerError)
+	}
+
+	nu, err := u.Profiles.Get(publicID)
+	if err != nil {
+		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"path":   r.URL.Path,
+			"remote": r.RemoteAddr,
+			"params": params,
+		}))
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve user profile", err), http.StatusInternalServerError)
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -154,7 +155,7 @@ func (u Users) Get(w http.ResponseWriter, r *http.Request, params map[string]str
 /* Service API
 	HTTP Method: GET
 	Request:
-		Path: /admin/users/
+		Path: /admin/profiles/
 		Body: None
 
    Response: (Success, 200)
@@ -179,17 +180,17 @@ func (u Users) Get(w http.ResponseWriter, r *http.Request, params map[string]str
 			"message":"",
 		}
 */
-func (u Users) GetAll(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	defer u.Log.Emit(sinks.Info("Create New User").WithFields(sink.Fields{
+func (u Profiles) GetAll(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	defer u.Log.Emit(sinks.Info("Create New Profile").WithFields(sink.Fields{
 		"remote": r.RemoteAddr,
 		"params": params,
 		"path":   r.URL.Path,
-	}).Trace("Users.GetAll").End())
+	}).Trace("Profiles.GetAll").End())
 
 	responsePerPage, _ := strconv.Atoi(params[ResponsePerPage])
 	page, _ := strconv.Atoi(params[Page])
 
-	nus, err := u.Users.GetAll(page, responsePerPage)
+	nus, err := u.Profiles.GetAll(page, responsePerPage)
 	if err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":   r.URL.Path,
@@ -216,36 +217,43 @@ func (u Users) GetAll(w http.ResponseWriter, r *http.Request, params map[string]
 /* Service API
 	HTTP Method: POST
 	Request:
-		Path: /users/
+		Path: /profiles/
 		Body:
-		{
-			"password":"",
-			"email":"",
-		}
+			{
+				"first_name":"",
+				"last_name":"",
+				"user_id":"",
+				"email":"",
+				"address":"",
+			}
 
    Response: (Success, 200)
-	Body:
-		{
-			"public_id":"",
-			"email":"",
-		}
+		Body:
+			{
+				"first_name":"",
+				"last_name":"",
+				"user_id":"",
+				"public_id":"",
+				"email":"",
+				"address":"",
+			}
 
    Response: (Failure, 500)
-	Body:
-		{
-			"status":"",
-			"title":"",
-			"message":"",
-		}
+		Body:
+			{
+				"status":"",
+				"title":"",
+				"message":"",
+			}
 */
-func (u Users) Create(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	defer u.Log.Emit(sinks.Info("Create New User").WithFields(sink.Fields{
+func (u Profiles) Create(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	defer u.Log.Emit(sinks.Info("Create New Profile").WithFields(sink.Fields{
 		"remote": r.RemoteAddr,
 		"params": params,
 		"path":   r.URL.Path,
-	}).Trace("Users.Create").End())
+	}).Trace("Profiles.Create").End())
 
-	var nw user.NewUser
+	var nw profile.NewProfile
 
 	defer r.Body.Close()
 
@@ -260,7 +268,19 @@ func (u Users) Create(w http.ResponseWriter, r *http.Request, params map[string]
 		return
 	}
 
-	newUser, err := u.Users.Create(nw)
+	existingUser, err := u.Users.Get(nw.UserID)
+	if err != nil {
+		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"path":   r.URL.Path,
+			"remote": r.RemoteAddr,
+			"params": params,
+		}))
+
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to get user for session", err), http.StatusInternalServerError)
+		return
+	}
+
+	newProfile, err := u.Profiles.Create(existingUser, &nw)
 	if err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":   r.URL.Path,
@@ -273,7 +293,7 @@ func (u Users) Create(w http.ResponseWriter, r *http.Request, params map[string]
 
 	w.WriteHeader(http.StatusCreated)
 
-	if err := json.NewEncoder(w).Encode(newUser.SafeFields()); err != nil {
+	if err := json.NewEncoder(w).Encode(newProfile.Fields()); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":   r.URL.Path,
 			"remote": r.RemoteAddr,
@@ -284,101 +304,22 @@ func (u Users) Create(w http.ResponseWriter, r *http.Request, params map[string]
 	}
 }
 
-// UpdatePassword handles receiving requests to update a user identified by it's public_id.
-/* Service API
-	HTTP Method: POST
-	Request:
-		Path: /users/password/:user_id
-		Body: None
-
-   Response: (Success, 200)
-	Body:
-		{
-			"public_id":"",
-			"password":"",
-			"password_confirmation":"",
-		}
-
-   Response: (Failure, 500)
-	Body:
-		{
-			"status":"",
-			"title":"",
-			"message":"",
-		}
-*/
-func (u Users) UpdatePassword(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	defer u.Log.Emit(sinks.Info("Update User Password").WithFields(sink.Fields{
-		"remote": r.RemoteAddr,
-		"params": params,
-		"path":   r.URL.Path,
-	}).Trace("Users.UpdatePassword").End())
-
-	publicID, ok := params["public_id"]
-	if !ok {
-		err := errors.New("Expected User `public_id` as param")
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"path":   r.URL.Path,
-			"remote": r.RemoteAddr,
-			"params": params,
-		}))
-
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read body", err), http.StatusInternalServerError)
-	}
-
-	var nw user.UpdateUserPassword
-
-	defer r.Body.Close()
-
-	if err := json.NewDecoder(r.Body).Decode(&nw); err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"path":   r.URL.Path,
-			"remote": r.RemoteAddr,
-			"params": params,
-		}))
-
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read body", err), http.StatusInternalServerError)
-		return
-	}
-
-	if nw.PublicID != publicID {
-		err := errors.New("JSON User.PublicID does not match update param")
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"path":   r.URL.Path,
-			"remote": r.RemoteAddr,
-			"params": params,
-		}))
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to connect to database", err), http.StatusInternalServerError)
-		return
-	}
-
-	if err := u.Users.UpdatePassword(nw); err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"path":   r.URL.Path,
-			"remote": r.RemoteAddr,
-			"params": params,
-		}))
-
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to update user password: %+q", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
 // Update handles receiving requests to update a user identified by it's public_id.
 /* Service API
 	HTTP Method: PUT
 	Request:
-		Path: /users/:user_id
-		Body: None
+		Path: /profile/:public_id
+		Body:
+			{
+				"first_name":"",
+				"last_name":"",
+				"public_id":"",
+				"email":"",
+				"address":"",
+			}
 
    Response: (Success, 201)
-	Body:
-		{
-			"public_id":"",
-			"email":"",
-		}
+	Body: None
 
    Response: (Failure, 500)
 	Body:
@@ -388,16 +329,16 @@ func (u Users) UpdatePassword(w http.ResponseWriter, r *http.Request, params map
 			"message":"",
 		}
 */
-func (u Users) Update(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	defer u.Log.Emit(sinks.Info("Update User").WithFields(sink.Fields{
+func (u Profiles) Update(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	defer u.Log.Emit(sinks.Info("Update Profile").WithFields(sink.Fields{
 		"remote": r.RemoteAddr,
 		"params": params,
 		"path":   r.URL.Path,
-	}).Trace("Users.Update").End())
+	}).Trace("Profiles.Update").End())
 
 	publicID, ok := params["public_id"]
 	if !ok {
-		err := errors.New("Expected User `public_id` as param")
+		err := errors.New("Expected Profile `public_id` as param")
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":   r.URL.Path,
 			"remote": r.RemoteAddr,
@@ -407,7 +348,7 @@ func (u Users) Update(w http.ResponseWriter, r *http.Request, params map[string]
 		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read body", err), http.StatusInternalServerError)
 	}
 
-	var nw user.UpdateUser
+	var nw profile.UpdateProfile
 
 	defer r.Body.Close()
 
@@ -423,7 +364,7 @@ func (u Users) Update(w http.ResponseWriter, r *http.Request, params map[string]
 	}
 
 	if nw.PublicID != publicID {
-		err := errors.New("JSON User.PublicID does not match update param")
+		err := errors.New("JSON Profile.PublicID does not match update param")
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":   r.URL.Path,
 			"remote": r.RemoteAddr,
@@ -433,7 +374,7 @@ func (u Users) Update(w http.ResponseWriter, r *http.Request, params map[string]
 		return
 	}
 
-	if err := u.Users.Update(nw); err != nil {
+	if err := u.Profiles.Update(nw); err != nil {
 		err := errors.New("Failed to update user details")
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":   r.URL.Path,
@@ -451,7 +392,7 @@ func (u Users) Update(w http.ResponseWriter, r *http.Request, params map[string]
 /* Service API
 	HTTP Method: DELETE
 	Request:
-		Path: /users/:user_id
+		Path: /profile/:public_id
 		Body: None
 
    Response: (Success, 201)
@@ -465,34 +406,31 @@ func (u Users) Update(w http.ResponseWriter, r *http.Request, params map[string]
 			"message":"",
 		}
 */
-func (u Users) Delete(w http.ResponseWriter, r *http.Request, params map[string]string) {
-	defer u.Log.Emit(sinks.Info("Delete Existing User").WithFields(sink.Fields{
-		"remote":  r.RemoteAddr,
-		"params":  params,
-		"path":    r.URL.Path,
-		"user_id": params["user_id"],
-	}).Trace("Users.Delete").End())
+func (u Profiles) Delete(w http.ResponseWriter, r *http.Request, params map[string]string) {
+	defer u.Log.Emit(sinks.Info("Delete Existing Profile").WithFields(sink.Fields{
+		"remote": r.RemoteAddr,
+		"params": params,
+		"path":   r.URL.Path,
+	}).Trace("Profiles.Delete").End())
 
-	userID, ok := params["user_id"]
+	profileID, ok := params["profile_id"]
 	if !ok {
-		err := errors.New("Expected User `user_id` as param")
+		err := errors.New("Expected Profile `profile_id` as param")
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"path":    r.URL.Path,
-			"remote":  r.RemoteAddr,
-			"params":  params,
-			"user_id": params["user_id"],
+			"path":   r.URL.Path,
+			"remote": r.RemoteAddr,
+			"params": params,
 		}))
 
 		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read param", err), http.StatusInternalServerError)
 		return
 	}
 
-	if err := u.Users.Delete(userID); err != nil {
+	if err := u.Profiles.Delete(profileID); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"path":    r.URL.Path,
-			"remote":  r.RemoteAddr,
-			"params":  params,
-			"user_id": params["user_id"],
+			"path":   r.URL.Path,
+			"remote": r.RemoteAddr,
+			"params": params,
 		}))
 		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to delete user", err), http.StatusInternalServerError)
 		return

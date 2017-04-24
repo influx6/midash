@@ -10,18 +10,24 @@ import (
 	"github.com/influx6/faux/sink/sinks"
 )
 
-// Profiles defines a handler which provides session related methods.
+// Profiles defines a handler which provides profile related methods.
 type Profiles struct {
 	DB  db.DB
 	Log sink.Sink
 }
 
-// Create adds a new session for the specified profile.
-func (p Profiles) Create(nu *user.User) (*profile.Profile, error) {
-	defer p.Log.Emit(sinks.Info("Create New Session").WithFields(sink.Fields{
+// Create adds a new profile for the specified profile.
+func (p Profiles) Create(nu *user.User, np *profile.NewProfile) (*profile.Profile, error) {
+	defer p.Log.Emit(sinks.Info("Create New Profile").WithFields(sink.Fields{
 		"user_email": nu.Email,
 		"user_id":    nu.PublicID,
 	}).Trace("Profiles.Create").End())
+
+	if np != nil && np.UserID != nu.PublicID {
+		err := errors.New("Invalid NewProfile.UserID: Does not match given user")
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_email": nu.Email, "user_id": nu.PublicID}))
+		return nil, err
+	}
 
 	dbi, err := p.DB.New()
 	if err != nil {
@@ -31,12 +37,19 @@ func (p Profiles) Create(nu *user.User) (*profile.Profile, error) {
 
 	var newProfile profile.Profile
 
-	// Attempt to retrieve session from db if we still have an outstanding non-expired session.
+	// Attempt to retrieve profile from db if we still have an outstanding non-expired profile.
 	if err := db.Get(p.Log, dbi, newProfile, &newProfile, profile.UniqueIndex, nu.PublicID); err == nil {
 		return &newProfile, nil
 	}
 
 	newProfile = *profile.New(nu.PublicID)
+
+	// If the provide data provided is not null, then add changes.
+	if np != nil {
+		newProfile.Address = np.Address
+		newProfile.FirstName = np.FirstName
+		newProfile.LastName = np.LastName
+	}
 
 	if err := db.Save(p.Log, dbi, &newProfile); err != nil {
 		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_email": nu.Email, "user_id": nu.PublicID}))
@@ -70,6 +83,8 @@ func (p Profiles) GetAll(page, responsePerPage int) (ProfileRecords, error) {
 		}))
 		return ProfileRecords{}, err
 	}
+
+	defer dbi.Close()
 
 	var nu profile.Profile
 	records, realTotalRecords, err := db.GetAllPerPage(p.Log, dbi, nu, "asc", "public_id", page, responsePerPage)
@@ -105,11 +120,36 @@ func (p Profiles) GetAll(page, responsePerPage int) (ProfileRecords, error) {
 	}, nil
 }
 
-// Get retrieves the session associated with the giving User.
-func (p Profiles) Get(userID string) (*profile.Profile, error) {
-	defer p.Log.Emit(sinks.Info("Get Existing Session").WithFields(sink.Fields{
-		"user_id": userID,
+// Get retrieves the profile associated with the giving profile_id.
+func (p Profiles) Get(profileID string) (*profile.Profile, error) {
+	defer p.Log.Emit(sinks.Info("Get Existing Profile").WithFields(sink.Fields{
+		"profile_id": profileID,
 	}).Trace("Profiles.Get").End())
+
+	dbi, err := p.DB.New()
+	if err != nil {
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"profile_id": profileID}))
+		return nil, err
+	}
+
+	defer dbi.Close()
+
+	var existingProfile profile.Profile
+
+	// Attempt to retrieve profile from db if we still have an outstanding non-expired profile.
+	if err := db.Get(p.Log, dbi, existingProfile, &existingProfile, "public_id", profileID); err != nil {
+		p.Log.Emit(sinks.Error("Failed to retrieve profile from db: %+q", err).WithFields(sink.Fields{"profile_id": profileID}))
+		return nil, err
+	}
+
+	return &existingProfile, nil
+}
+
+// GetByUser retrieves the profile associated with the giving UserID.
+func (p Profiles) GetByUser(userID string) (*profile.Profile, error) {
+	defer p.Log.Emit(sinks.Info("Get Existing Profile").WithFields(sink.Fields{
+		"user_id": userID,
+	}).Trace("Profiles.GetByUser").End())
 
 	dbi, err := p.DB.New()
 	if err != nil {
@@ -117,22 +157,24 @@ func (p Profiles) Get(userID string) (*profile.Profile, error) {
 		return nil, err
 	}
 
+	defer dbi.Close()
+
 	var existingProfile profile.Profile
 
-	// Attempt to retrieve session from db if we still have an outstanding non-expired session.
+	// Attempt to retrieve profile from db if we still have an outstanding non-expired profile.
 	if err := db.Get(p.Log, dbi, existingProfile, &existingProfile, profile.UniqueIndex, userID); err != nil {
-		p.Log.Emit(sinks.Error("Failed to retrieve session from db: %+q", err).WithFields(sink.Fields{"user_id": userID}))
+		p.Log.Emit(sinks.Error("Failed to retrieve profile from db: %+q", err).WithFields(sink.Fields{"user_id": userID}))
 		return nil, err
 	}
 
 	return &existingProfile, nil
 }
 
-// Delete removes an existing session from the db for a specified profile.
-func (p Profiles) Delete(userID string) error {
-	defer p.Log.Emit(sinks.Info("Delete Existing Session").WithFields(sink.Fields{
+// DeleteByUser removes an existing profile from the db for a specified profile.
+func (p Profiles) DeleteByUser(userID string) error {
+	defer p.Log.Emit(sinks.Info("Delete Existing Profile").WithFields(sink.Fields{
 		"user_id": userID,
-	}).Trace("Profiles.Delete").End())
+	}).Trace("Profiles.DeleteByUser").End())
 
 	dbi, err := p.DB.New()
 	if err != nil {
@@ -140,11 +182,38 @@ func (p Profiles) Delete(userID string) error {
 		return err
 	}
 
+	defer dbi.Close()
+
 	var ns profile.Profile
 
-	// Delete this sessions
+	// Delete this profile
 	if err := db.Delete(p.Log, dbi, ns, profile.UniqueIndex, userID); err != nil {
-		p.Log.Emit(sinks.Error("Failed to delete profile session from db: %+q", err).WithFields(sink.Fields{"user_id": userID}))
+		p.Log.Emit(sinks.Error("Failed to delete profile profile from db: %+q", err).WithFields(sink.Fields{"user_id": userID}))
+		return err
+	}
+
+	return nil
+}
+
+// Delete removes an existing profile from the db for a specified profile by its id.
+func (p Profiles) Delete(profileID string) error {
+	defer p.Log.Emit(sinks.Info("Delete Existing Profile").WithFields(sink.Fields{
+		"profile_id": profileID,
+	}).Trace("Profiles.Delete").End())
+
+	dbi, err := p.DB.New()
+	if err != nil {
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"profile_id": profileID}))
+		return err
+	}
+
+	defer dbi.Close()
+
+	var ns profile.Profile
+
+	// Delete this profile
+	if err := db.Delete(p.Log, dbi, ns, "public_id", profileID); err != nil {
+		p.Log.Emit(sinks.Error("Failed to delete profile from db: %+q", err).WithFields(sink.Fields{"profile_id": profileID}))
 		return err
 	}
 
@@ -172,6 +241,8 @@ func (p Profiles) Update(nw profile.UpdateProfile) error {
 
 		return err
 	}
+
+	defer dbi.Close()
 
 	if err := db.Update(p.Log, dbi, nw, "public_id"); err != nil {
 		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{

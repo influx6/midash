@@ -17,6 +17,16 @@ const (
 
 //===============================================================================================
 
+// NewProfile defines a struct which contains data for creating a new user profile.
+type NewProfile struct {
+	Address   string `json:"address"`
+	UserID    string `json:"user_id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+}
+
+//===============================================================================================
+
 // UpdateProfile defines a struct which contains data for updating user profile.
 type UpdateProfile struct {
 	Address   string `json:"address"`

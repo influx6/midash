@@ -30,6 +30,8 @@ func (s Sessions) Create(nu *user.User) (*session.Session, error) {
 		return nil, err
 	}
 
+	defer dbi.Close()
+
 	currentTime := time.Now()
 
 	var newSession session.Session
@@ -89,6 +91,8 @@ func (s Sessions) GetAll(page, responsePerPage int) (SessionRecords, error) {
 		return SessionRecords{}, err
 	}
 
+	defer dbi.Close()
+
 	var nu session.Session
 	records, realTotalRecords, err := db.GetAllPerPage(s.Log, dbi, nu, "asc", "public_id", page, responsePerPage)
 	if err != nil {
@@ -135,6 +139,8 @@ func (s Sessions) Get(userID string) (*session.Session, error) {
 		return nil, err
 	}
 
+	defer dbi.Close()
+
 	var existingSession session.Session
 
 	// Attempt to retrieve session from db if we still have an outstanding non-expired session.
@@ -157,6 +163,8 @@ func (s Sessions) Delete(userID string) error {
 		s.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_id": userID}))
 		return err
 	}
+
+	defer dbi.Close()
 
 	var ns session.Session
 
