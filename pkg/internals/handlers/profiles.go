@@ -1,0 +1,185 @@
+package handlers
+
+import (
+	"errors"
+
+	"github.com/gu-io/midash/pkg/db"
+	"github.com/gu-io/midash/pkg/internals/models/profile"
+	"github.com/gu-io/midash/pkg/internals/models/user"
+	"github.com/influx6/faux/sink"
+	"github.com/influx6/faux/sink/sinks"
+)
+
+// Profiles defines a handler which provides session related methods.
+type Profiles struct {
+	DB  db.DB
+	Log sink.Sink
+}
+
+// Create adds a new session for the specified profile.
+func (p Profiles) Create(nu *user.User) (*profile.Profile, error) {
+	defer p.Log.Emit(sinks.Info("Create New Session").WithFields(sink.Fields{
+		"user_email": nu.Email,
+		"user_id":    nu.PublicID,
+	}).Trace("Profiles.Create").End())
+
+	dbi, err := p.DB.New()
+	if err != nil {
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_email": nu.Email, "user_id": nu.PublicID}))
+		return nil, err
+	}
+
+	var newProfile profile.Profile
+
+	// Attempt to retrieve session from db if we still have an outstanding non-expired session.
+	if err := db.Get(p.Log, dbi, newProfile, &newProfile, profile.UniqueIndex, nu.PublicID); err == nil {
+		return &newProfile, nil
+	}
+
+	newProfile = *profile.New(nu.PublicID)
+
+	if err := db.Save(p.Log, dbi, &newProfile); err != nil {
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_email": nu.Email, "user_id": nu.PublicID}))
+		return nil, err
+	}
+
+	return &newProfile, nil
+}
+
+// ProfileRecords defines a struct which returns the total fields and page details
+// used in retrieving the records.
+type ProfileRecords struct {
+	Total         int               `json:"total"`
+	Page          int               `json:"page"`
+	ResponserPage int               `json:"responserPerPage"`
+	Records       []profile.Profile `json:"records"`
+}
+
+// GetAll handles receiving requests to retrieve all profile from the database.
+func (p Profiles) GetAll(page, responsePerPage int) (ProfileRecords, error) {
+	defer p.Log.Emit(sinks.Info("Get Existing User").WithFields(sink.Fields{
+		"page":            page,
+		"responsePerPage": responsePerPage,
+	}).Trace("handlers.Users.Create").End())
+
+	dbi, err := p.DB.New()
+	if err != nil {
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"page":            page,
+			"responsePerPage": responsePerPage,
+		}))
+		return ProfileRecords{}, err
+	}
+
+	var nu profile.Profile
+	records, realTotalRecords, err := db.GetAllPerPage(p.Log, dbi, nu, "asc", "public_id", page, responsePerPage)
+	if err != nil {
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"page":            page,
+			"responsePerPage": responsePerPage,
+		}))
+		return ProfileRecords{}, err
+	}
+
+	var profileRecords []profile.Profile
+
+	for _, record := range records {
+		var nw profile.Profile
+
+		if err := nw.WithFields(record); err != nil {
+			p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+				"page":            page,
+				"responsePerPage": responsePerPage,
+			}))
+			return ProfileRecords{}, err
+		}
+
+		profileRecords = append(profileRecords, nw)
+	}
+
+	return ProfileRecords{
+		Page:          page,
+		Total:         realTotalRecords,
+		Records:       profileRecords,
+		ResponserPage: responsePerPage,
+	}, nil
+}
+
+// Get retrieves the session associated with the giving User.
+func (p Profiles) Get(userID string) (*profile.Profile, error) {
+	defer p.Log.Emit(sinks.Info("Get Existing Session").WithFields(sink.Fields{
+		"user_id": userID,
+	}).Trace("Profiles.Get").End())
+
+	dbi, err := p.DB.New()
+	if err != nil {
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_id": userID}))
+		return nil, err
+	}
+
+	var existingProfile profile.Profile
+
+	// Attempt to retrieve session from db if we still have an outstanding non-expired session.
+	if err := db.Get(p.Log, dbi, existingProfile, &existingProfile, profile.UniqueIndex, userID); err != nil {
+		p.Log.Emit(sinks.Error("Failed to retrieve session from db: %+q", err).WithFields(sink.Fields{"user_id": userID}))
+		return nil, err
+	}
+
+	return &existingProfile, nil
+}
+
+// Delete removes an existing session from the db for a specified profile.
+func (p Profiles) Delete(userID string) error {
+	defer p.Log.Emit(sinks.Info("Delete Existing Session").WithFields(sink.Fields{
+		"user_id": userID,
+	}).Trace("Profiles.Delete").End())
+
+	dbi, err := p.DB.New()
+	if err != nil {
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_id": userID}))
+		return err
+	}
+
+	var ns profile.Profile
+
+	// Delete this sessions
+	if err := db.Delete(p.Log, dbi, ns, profile.UniqueIndex, userID); err != nil {
+		p.Log.Emit(sinks.Error("Failed to delete profile session from db: %+q", err).WithFields(sink.Fields{"user_id": userID}))
+		return err
+	}
+
+	return nil
+}
+
+// Update handles receiving requests to update a profile identified by it's public_id.
+func (p Profiles) Update(nw profile.UpdateProfile) error {
+	defer p.Log.Emit(sinks.Info("Update User").With("profile_id", nw.PublicID).Trace("handlers.Users.Update").End())
+
+	if nw.PublicID == "" {
+		err := errors.New("JSON User.PublicID is empty")
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"profile_id": nw.PublicID,
+		}))
+
+		return err
+	}
+
+	dbi, err := p.DB.New()
+	if err != nil {
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"profile_id": nw.PublicID,
+		}))
+
+		return err
+	}
+
+	if err := db.Update(p.Log, dbi, nw, "public_id"); err != nil {
+		p.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"profile_id": nw.PublicID,
+		}))
+
+		return err
+	}
+
+	return nil
+}

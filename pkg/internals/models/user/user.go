@@ -18,9 +18,39 @@ const (
 type User struct {
 	Email     string `json:"email"`
 	PublicID  string `json:"public_id"`
-	PrivateID string `json:"private_id"`
-	Hash      string `json:"hash"`
+	PrivateID string `json:"private_id,omitempty"`
+	Hash      string `json:"hash,omitempty"`
 }
+
+// UpdateUserPassword defines the set of data sent when updating a users password.
+type UpdateUserPassword struct {
+	PublicID        string `json:"public_id"`
+	Password        string `json:"password"`
+	PasswordConfirm string `json:"password_confirm"`
+}
+
+//====================================================================================================
+
+// UpdateUser defines the set of data sent when updating a users data.
+type UpdateUser struct {
+	Email    string `json:"email"`
+	PublicID string `json:"public_id"`
+}
+
+// Fields returns a map representing the data of the user.
+func (u UpdateUser) Fields() map[string]interface{} {
+	return map[string]interface{}{
+		"email":     u.Email,
+		"public_id": u.PublicID,
+	}
+}
+
+// Table returns the given table which the given struct corresponds to.
+func (u UpdateUser) Table() string {
+	return tableName
+}
+
+//====================================================================================================
 
 // NewUser defines the set of data received to create a new user.
 type NewUser struct {
@@ -35,19 +65,13 @@ func New(nw NewUser) (*User, error) {
 	u.PublicID = uuid.NewV4().String()
 	u.PrivateID = uuid.NewV4().String()
 
-	pass := []byte(u.PrivateID + ":" + nw.Password)
-	hash, err := bcrypt.GenerateFromPassword(pass, hashComplexity)
-	if err != nil {
-		return nil, err
-	}
-
-	u.Hash = string(hash)
+	u.ChangePassword(nw.Password)
 
 	return &u, nil
 }
 
 // Authenticate attempts to authenticate the giving password to the provided user.
-func (u *User) Authenticate(password string) error {
+func (u User) Authenticate(password string) error {
 	pass := []byte(u.PrivateID + ":" + password)
 	return bcrypt.CompareHashAndPassword([]byte(u.Hash), pass)
 }
@@ -55,6 +79,39 @@ func (u *User) Authenticate(password string) error {
 // Table returns the given table which the given struct corresponds to.
 func (u User) Table() string {
 	return tableName
+}
+
+// SafeFields returns a map representing the data of the user with important
+// security fields removed.
+func (u User) SafeFields() map[string]interface{} {
+	fields := u.Fields()
+
+	delete(fields, "hash")
+	delete(fields, "private_id")
+
+	return fields
+}
+
+// Fields returns a map representing the data of the user.
+func (u User) Fields() map[string]interface{} {
+	return map[string]interface{}{
+		"hash":       u.Hash,
+		"email":      u.Email,
+		"private_id": u.PrivateID,
+		"public_id":  u.PublicID,
+	}
+}
+
+// ChangePassword uses the provided password to set the users password hash.
+func (u *User) ChangePassword(password string) error {
+	pass := []byte(u.PrivateID + ":" + password)
+	hash, err := bcrypt.GenerateFromPassword(pass, hashComplexity)
+	if err != nil {
+		return err
+	}
+
+	u.Hash = string(hash)
+	return nil
 }
 
 // WithFields attempts to syncing the giving data within the provided
@@ -85,25 +142,4 @@ func (u *User) WithFields(fields map[string]interface{}) error {
 	}
 
 	return nil
-}
-
-// SafeFields returns a map representing the data of the user with important
-// security fields removed.
-func (u *User) SafeFields() map[string]interface{} {
-	fields := u.Fields()
-
-	delete(fields, "hash")
-	delete(fields, "private_id")
-
-	return fields
-}
-
-// Fields returns a map representing the data of the user.
-func (u *User) Fields() map[string]interface{} {
-	return map[string]interface{}{
-		"hash":       u.Hash,
-		"email":      u.Email,
-		"private_id": u.PrivateID,
-		"public_id":  u.PublicID,
-	}
 }

@@ -10,5 +10,9 @@ build: clean
 docker: build
 	docker build -t $(USER)/midash ./
 
+dockertest: build
+	docker build -f test.dockerfile -t $(USER)/midash-test ./
+	docker rmi $(USER)/midash-test
+
 clean:
 	rm -rf MAIN_BIN

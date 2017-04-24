@@ -1,0 +1,22 @@
+{
+    "dependencies": {
+        "github.com/dimfeld/httptreemux": {
+            "branch": "master"
+        },
+        "github.com/go-sql-driver/mysql": {
+            "branch": "master"
+        },
+        "github.com/influx6/faux": {
+            "branch": "master"
+        },
+        "github.com/jmoiron/sqlx": {
+            "branch": "master"
+        },
+        "github.com/satori/go.uuid": {
+            "branch": "master"
+        },
+        "golang.org/x/crypto": {
+            "branch": "master"
+        }
+    }
+}
