@@ -286,18 +286,18 @@ func (u Users) Create(w http.ResponseWriter, r *http.Request, params map[string]
 
 // UpdatePassword handles receiving requests to update a user identified by it's public_id.
 /* Service API
-	HTTP Method: POST
+	HTTP Method: PUT
 	Request:
 		Path: /users/password/:user_id
 		Body: None
+			{
+				"public_id":"",
+				"password":"",
+				"password_confirmation":"",
+			}
 
-   Response: (Success, 200)
-	Body:
-		{
-			"public_id":"",
-			"password":"",
-			"password_confirmation":"",
-		}
+   Response: (Success, 201)
+		Body: None
 
    Response: (Failure, 500)
 	Body:

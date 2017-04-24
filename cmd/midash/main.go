@@ -12,10 +12,10 @@ import (
 	"github.com/dimfeld/httptreemux"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gu-io/midash/pkg/controllers" // loads up the go mysql driver.
+	"github.com/gu-io/midash/pkg/internals/handlers"
 	"github.com/influx6/faux/sink"
 	"github.com/influx6/faux/sink/sinks"
 	"github.com/jmoiron/sqlx"
-	"github.com/servi-io/api/cmd/servid/handlers"
 )
 
 // contains different environment flags for use to setting up
@@ -82,7 +82,7 @@ func main() {
 	tree := httptreemux.New()
 
 	users := controllers.Users{
-		Users: handlers.User{
+		Users: handlers.Users{
 			DB:  dj,
 			Log: log,
 		},
@@ -91,8 +91,11 @@ func main() {
 	tree.Handle("GET", "/", index)
 	tree.Handle("GET", fmt.Sprintf("/%s", version), welcome(version))
 
+	tree.Handle("GET", fmt.Sprintf("/%s/users", version), users.GetAll)
 	tree.Handle("POST", fmt.Sprintf("/%s/users", version), users.Create)
-	tree.Handle("PUT", fmt.Sprintf("/%s/users/:public_id", version), users.Update)
+	tree.Handle("PUT", fmt.Sprintf("/%s/users/:user_id", version), users.Update)
+	tree.Handle("GET", fmt.Sprintf("/%s/users/:user_id", version), users.Get)
+	tree.Handle("PUT", fmt.Sprintf("/%s/users/password/:user_id", version), users.UpdatePassword)
 
 	cm := make(chan os.Signal, 1)
 	signal.Notify(cm, os.Interrupt)

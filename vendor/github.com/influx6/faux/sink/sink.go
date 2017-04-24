@@ -5,6 +5,7 @@ package sink
 
 import (
 	"fmt"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -244,6 +245,9 @@ func With(id int64, key string, value interface{}) Entry {
 // on a given from a trace call to trace a given call with stack details
 // and execution time.
 type Trace struct {
+	File       string    `json:"file"`
+	Package    string    `json:"Package"`
+	LineNumber int       `json:"line_number"`
 	BeginStack []byte    `json:"begin_stack"`
 	EndStack   []byte    `json:"end_stack"`
 	StartTime  time.Time `json:"start_time"`
@@ -277,10 +281,30 @@ func (e Entry) Trace(name string) *Trace {
 	trace := make([]byte, StackSize)
 	trace = trace[:runtime.Stack(trace, false)]
 
+	_, file, line, ok := runtime.Caller(2)
+	if !ok {
+		file = "???"
+	}
+
+	var pkg string
+	pkgBaseFile := file
+
+	if file != "???" {
+		goroot := runtime.GOROOT()
+		gorootSrc := filepath.Join(goroot, "src")
+		pkgFile, _ := filepath.Rel(gorootSrc, file)
+
+		pkg = filepath.Dir(pkgFile)
+		pkgBaseFile = filepath.Base(pkgFile)
+	}
+
 	return &Trace{
-		StartTime:  time.Now(),
-		BeginStack: trace,
 		entry:      &e,
+		Package:    pkg,
+		LineNumber: line,
+		BeginStack: trace,
+		StartTime:  time.Now(),
+		File:       pkgBaseFile,
 	}
 }
 

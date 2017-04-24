@@ -165,10 +165,12 @@ func (u Profiles) Get(w http.ResponseWriter, r *http.Request, params map[string]
 			total: 100,
 			responsePerPage: 24,
 			records: [{
-				"public_id":"",
-				"private_id":"",
-				"hash":"",
+				"first_name":"",
+				"last_name":"",
+				"user_id":"",
+				"profile_id":"",
 				"email":"",
+				"address":"",
 			}]
 		}
 
@@ -276,7 +278,7 @@ func (u Profiles) Create(w http.ResponseWriter, r *http.Request, params map[stri
 			"params": params,
 		}))
 
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to get user for session", err), http.StatusInternalServerError)
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to get user for profile", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -413,7 +415,7 @@ func (u Profiles) Delete(w http.ResponseWriter, r *http.Request, params map[stri
 		"path":   r.URL.Path,
 	}).Trace("Profiles.Delete").End())
 
-	profileID, ok := params["profile_id"]
+	profileID, ok := params["public_id"]
 	if !ok {
 		err := errors.New("Expected Profile `profile_id` as param")
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{

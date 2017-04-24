@@ -1,5 +1,5 @@
 {
-    "memo": "7c1111b7c41cd8f5d093428f41f4854e9e1f3d173cc7489db231517cb263becc",
+    "memo": "a4011d7bc695ba859529c2d0b8fc317a8d227773499ec73362418d0d0739b5bb",
     "projects": [
         {
             "name": "github.com/dimfeld/httptreemux",
@@ -28,7 +28,7 @@
         {
             "name": "github.com/influx6/faux",
             "branch": "master",
-            "revision": "de5d3850482189d243b38af8c4042473667d410b",
+            "revision": "01620e3c64890193954a611518a76e0b67ffe2bb",
             "packages": [
                 "sink",
                 "sink/sinks",
@@ -71,7 +71,7 @@
         {
             "name": "golang.org/x/crypto",
             "branch": "master",
-            "revision": "40541ccb1c6e64c947ed6f606b8a6cb4b67d7436",
+            "revision": "3543873453996aaab2fc6b3928a35fc5ca2b5afb",
             "packages": [
                 "bcrypt",
                 "blowfish"
