@@ -13,7 +13,7 @@ import (
 
 // contains templates of sql statement for use in operations.
 const (
-	countTemplate         = "SELECT id FROM %s"
+	countTemplate         = "SELECT %s FROM %s"
 	selectAllTemplate     = "SELECT * FROM %s ORDER BY %s %s"
 	selectLimitedTemplate = "SELECT * FROM %s ORDER BY %s %s LIMIT %d %d"
 	selectItemTemplate    = "SELECT * FROM %s WHERE %s=?"
@@ -137,7 +137,7 @@ func GetAllPerPage(log sink.Sink, db *sqlx.DB, table TableIdentity, order string
 	}
 
 	// Get total number of records.
-	totalRecords, err := Count(log, db, table)
+	totalRecords, err := Count(log, db, table, "public_id")
 	if err != nil {
 		return nil, 0, err
 	}
@@ -244,14 +244,14 @@ func Get(log sink.Sink, db *sqlx.DB, table TableIdentity, consumer TableConsumer
 }
 
 // Count retrieves the total number of records from the specific table from the db.
-func Count(log sink.Sink, db *sqlx.DB, table TableIdentity) (int, error) {
+func Count(log sink.Sink, db *sqlx.DB, table TableIdentity, index string) (int, error) {
 	defer log.Emit(sinks.Info("Count record from DB").WithFields(sink.Fields{
 		"table": table.Table(),
 	}).Trace("db.Get").End())
 
 	var records []int
 
-	query := fmt.Sprintf(countTemplate, table.Table())
+	query := fmt.Sprintf(countTemplate, index, table.Table())
 	log.Emit(sinks.Info("DB:Query").With("query", query))
 
 	if err := db.Get(&records, query); err != nil {

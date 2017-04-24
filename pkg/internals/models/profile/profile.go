@@ -76,7 +76,7 @@ func (Profile) Table() string {
 // WithFields attempts to syncing the giving data within the provided
 // map into it's own fields.
 func (u *Profile) WithFields(fields map[string]interface{}) error {
-	if user, ok := fields["user_id"].(string); ok {
+	if user, ok := fields["user_public_id"].(string); ok {
 		u.UserID = user
 	}
 
