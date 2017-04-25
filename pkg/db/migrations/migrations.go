@@ -94,7 +94,7 @@ func (table TableMigration) String() string {
 	var b bytes.Buffer
 
 	if table.TableName != "" {
-		fmt.Fprintf(&b, "CREATE TABLE %s (\n", table.TableName)
+		fmt.Fprintf(&b, "CREATE TABLE IF NOT EXISTS %s (\n", table.TableName)
 
 		total := len(table.Fields) - 1
 		hasFields := table.Fields != nil

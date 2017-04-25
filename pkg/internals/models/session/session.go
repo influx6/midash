@@ -3,6 +3,8 @@ package session
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	uuid "github.com/satori/go.uuid"
@@ -50,7 +52,13 @@ func (u Session) ValidateToken(token string) bool {
 		return false
 	}
 
-	if string(decoded) != u.Token {
+	// Attempt to get the session token split which has the userid:session_token.
+	sessionToken := strings.Split(string(decoded), ":")
+	if len(sessionToken) != 2 {
+		return false
+	}
+
+	if string(sessionToken[1]) != u.Token {
 		return false
 	}
 
@@ -58,8 +66,10 @@ func (u Session) ValidateToken(token string) bool {
 }
 
 // SessionToken returns the Session.Token has a base64 encoded string.
+// It returns a base64 encoded version where it contains the UserID:SessionToken.
 func (u Session) SessionToken() string {
-	return base64.StdEncoding.EncodeToString([]byte(u.Token))
+	sessionToken := fmt.Sprintf("%s:%s", u.UserID, u.Token)
+	return base64.StdEncoding.EncodeToString([]byte(sessionToken))
 }
 
 // Table returns the given table which the given struct corresponds to.

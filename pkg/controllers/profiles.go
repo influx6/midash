@@ -13,7 +13,7 @@ import (
 	"github.com/influx6/faux/sink/sinks"
 )
 
-// Profiles exposes a central handle for which requests are served to all requests.
+// Profiles exposes a central handle for which the API exposes request for profiles.
 type Profiles struct {
 	handlers.Profiles
 	Users handlers.Users
@@ -22,6 +22,13 @@ type Profiles struct {
 // GetForUser handles receiving requests to get a user's profile from the backend.
 /* Service API
 	HTTP Method: GET
+	Header:
+			{
+				"Authorization":"Bearer <TOKEN>",
+			}
+
+			WHERE: <TOKEN> = <USERID>:<SESSIONTOKEN>
+
 	Request:
 		Path: /admin/users/profile/:user_id
 		Body: None
@@ -88,6 +95,13 @@ func (u Profiles) GetForUser(w http.ResponseWriter, r *http.Request, params map[
 // Get handles receiving requests to get a users from the db.
 /* Service API
 	HTTP Method: GET
+	Header:
+			{
+				"Authorization":"Bearer <TOKEN>",
+			}
+
+			WHERE: <TOKEN> = <USERID>:<SESSIONTOKEN>
+
 	Request:
 		Path: /profiles/:public_id
 		Body: None
@@ -154,6 +168,13 @@ func (u Profiles) Get(w http.ResponseWriter, r *http.Request, params map[string]
 // GetAll handles receiving requests to get all users from the db.
 /* Service API
 	HTTP Method: GET
+	Header:
+			{
+				"Authorization":"Bearer <TOKEN>",
+			}
+
+			WHERE: <TOKEN> = <USERID>:<SESSIONTOKEN>
+
 	Request:
 		Path: /admin/profiles/
 		Body: None
@@ -218,6 +239,13 @@ func (u Profiles) GetAll(w http.ResponseWriter, r *http.Request, params map[stri
 // Create handles receiving requests to create a user from the server.
 /* Service API
 	HTTP Method: POST
+	Header:
+			{
+				"Authorization":"Bearer <TOKEN>",
+			}
+
+			WHERE: <TOKEN> = <USERID>:<SESSIONTOKEN>
+
 	Request:
 		Path: /profiles/
 		Body:
@@ -309,6 +337,13 @@ func (u Profiles) Create(w http.ResponseWriter, r *http.Request, params map[stri
 // Update handles receiving requests to update a user identified by it's public_id.
 /* Service API
 	HTTP Method: PUT
+	Header:
+			{
+				"Authorization":"Bearer <TOKEN>",
+			}
+
+			WHERE: <TOKEN> = <USERID>:<SESSIONTOKEN>
+
 	Request:
 		Path: /profile/:public_id
 		Body:
@@ -393,6 +428,13 @@ func (u Profiles) Update(w http.ResponseWriter, r *http.Request, params map[stri
 // Delete handles receiving requests to removes a user from the server.
 /* Service API
 	HTTP Method: DELETE
+	Header:
+			{
+				"Authorization":"Bearer <TOKEN>",
+			}
+
+			WHERE: <TOKEN> = <USERID>:<SESSIONTOKEN>
+
 	Request:
 		Path: /profile/:public_id
 		Body: None

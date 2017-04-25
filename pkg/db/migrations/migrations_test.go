@@ -7,7 +7,7 @@ import (
 	"github.com/influx6/faux/tests"
 )
 
-var expected = "use buba;\r\n\nCREATE TABLE users (\n\tid INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,\n\tname VARCHAR(255) NOT NULL,\n\tcreated_at timestamp NOT NULL,\n\tupdated_at timestamp NOT NULL,\n\tINDEX name (name_idx)\n);\r\n\r\nALTER TABLE users ADD bottle VARCHAR(255) NOT NULL;\nALTER TABLE users ADD wine_id VARCHAR(255) NOT NULL;\n\r\n"
+var expected = "use buba;\r\n\nCREATE TABLE IF NOT EXISTS users (\n\tid INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT,\n\tname VARCHAR(255) NOT NULL,\n\tcreated_at timestamp NOT NULL,\n\tupdated_at timestamp NOT NULL,\n\tINDEX name (name_idx)\n);\r\n\r\nALTER TABLE users ADD bottle VARCHAR(255) NOT NULL;\nALTER TABLE users ADD wine_id VARCHAR(255) NOT NULL;\n\r\n"
 
 func TestMigration(t *testing.T) {
 	migration := migrations.New("buba", nil)
