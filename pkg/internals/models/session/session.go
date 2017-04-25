@@ -20,10 +20,16 @@ const (
 	UniqueIndexField = "user_public_id"
 )
 
-// NewSession defines the set of data received to create a new user.
+// NewSession defines the set of data received to create a new user's session.
 type NewSession struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+// EndSession defines the set of data received to end a user's session.
+type EndSession struct {
+	UserID string `json:"user_id"`
+	Token  string `json:"token"`
 }
 
 // Session defines a struct which holds the the details of a giving user session.
@@ -77,6 +83,15 @@ func (u Session) Table() string {
 	return tableName
 }
 
+// SessionFields returns a map representing the user session.
+func (u Session) SessionFields() map[string]interface{} {
+	return map[string]interface{}{
+		"type":    "Bearer",
+		"token":   u.SessionToken(),
+		"expires": u.Expires.Format(time.RFC3339),
+	}
+}
+
 // Fields returns a map representing the data of the session.
 func (u Session) Fields() map[string]interface{} {
 	return map[string]interface{}{
@@ -85,6 +100,11 @@ func (u Session) Fields() map[string]interface{} {
 		"public_id":      u.PublicID,
 		"expires":        u.Expires.Format(time.RFC3339),
 	}
+}
+
+// Expired returns true/false if the the given session is expired.
+func (u *Session) Expired() bool {
+	return time.Now().After(u.Expires)
 }
 
 // WithFields attempts to syncing the giving data within the provided
@@ -123,4 +143,27 @@ func (u *Session) WithFields(fields map[string]interface{}) error {
 	}
 
 	return nil
+}
+
+// ParseToken parses the base64 encoded token, which it returns the
+// associated userID and session token.
+func ParseToken(val string) (userID string, token string, err error) {
+	var decoded []byte
+
+	decoded, err = base64.StdEncoding.DecodeString(val)
+	if err != nil {
+		return
+	}
+
+	// Attempt to get the session token split which has the userid:session_token.
+	sessionToken := strings.Split(string(decoded), ":")
+	if len(sessionToken) != 2 {
+		err = errors.New("Invalid SessionToken: Token must be UserID:Token  format")
+		return
+	}
+
+	userID = sessionToken[0]
+	token = sessionToken[1]
+
+	return
 }

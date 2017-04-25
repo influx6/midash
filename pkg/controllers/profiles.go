@@ -16,21 +16,16 @@ import (
 // Profiles exposes a central handle for which the API exposes request for profiles.
 type Profiles struct {
 	handlers.Profiles
-	Users handlers.Users
+	Users    handlers.Users
+	Sessions handlers.Sessions
 }
 
 // GetForUser handles receiving requests to get a user's profile from the backend.
 /* Service API
 	HTTP Method: GET
-	Header:
-			{
-				"Authorization":"Bearer <TOKEN>",
-			}
-
-			WHERE: <TOKEN> = <USERID>:<SESSIONTOKEN>
 
 	Request:
-		Path: /admin/users/profile/:user_id
+		Path: /profile/users/:user_id
 		Body: None
 
    Response: (Success, 200)
@@ -57,6 +52,7 @@ func (u Profiles) GetForUser(w http.ResponseWriter, r *http.Request, params map[
 		"path":   r.URL.Path,
 	}).Trace("Profiles.Get").End())
 
+	// Retrieve UserID from the params.
 	userID, ok := params["user_id"]
 	if !ok {
 		err := errors.New("Expected Profile `UserID` as param")
@@ -66,7 +62,8 @@ func (u Profiles) GetForUser(w http.ResponseWriter, r *http.Request, params map[
 			"params": params,
 		}))
 
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read body", err), http.StatusInternalServerError)
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read `user_id` in params", err), http.StatusInternalServerError)
+		return
 	}
 
 	nu, err := u.Profiles.GetByUser(userID)
@@ -77,6 +74,7 @@ func (u Profiles) GetForUser(w http.ResponseWriter, r *http.Request, params map[
 			"params": params,
 		}))
 		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve user's profile", err), http.StatusInternalServerError)
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -140,6 +138,7 @@ func (u Profiles) Get(w http.ResponseWriter, r *http.Request, params map[string]
 		}))
 
 		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read body", err), http.StatusInternalServerError)
+		return
 	}
 
 	nu, err := u.Profiles.Get(publicID)
@@ -150,6 +149,7 @@ func (u Profiles) Get(w http.ResponseWriter, r *http.Request, params map[string]
 			"params": params,
 		}))
 		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve user profile", err), http.StatusInternalServerError)
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -221,6 +221,7 @@ func (u Profiles) GetAll(w http.ResponseWriter, r *http.Request, params map[stri
 			"params": params,
 		}))
 		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve users", err), http.StatusInternalServerError)
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -383,6 +384,7 @@ func (u Profiles) Update(w http.ResponseWriter, r *http.Request, params map[stri
 		}))
 
 		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read body", err), http.StatusInternalServerError)
+		return
 	}
 
 	var nw profile.UpdateProfile

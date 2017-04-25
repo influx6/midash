@@ -72,7 +72,7 @@ func (s Sessions) Get(w http.ResponseWriter, r *http.Request, params map[string]
 			"params":  params,
 			"user_id": params["user_id"],
 		}))
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve user", err), http.StatusInternalServerError)
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve user session", err), http.StatusInternalServerError)
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -165,8 +165,7 @@ func (s Sessions) GetAll(w http.ResponseWriter, r *http.Request, params map[stri
    Response: (Success, 201)
 		Body:
 			{
-				"user_id":"",
-				"public_id":"",
+				"type":"Bearer",
 				"expires":"",
 				"token":"",
 			}
@@ -210,7 +209,19 @@ func (s Sessions) Login(w http.ResponseWriter, r *http.Request, params map[strin
 			"user_email": nw.Email,
 		}))
 
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to get user for session", err), http.StatusInternalServerError)
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to find user with email", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := existingUser.Authenticate(nw.Password); err != nil {
+		s.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"path":       r.URL.Path,
+			"remote":     r.RemoteAddr,
+			"params":     params,
+			"user_email": nw.Email,
+		}))
+
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Invalid Credentials: Failed to authenticate user", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -227,7 +238,7 @@ func (s Sessions) Login(w http.ResponseWriter, r *http.Request, params map[strin
 
 	w.WriteHeader(http.StatusCreated)
 
-	if err := json.NewEncoder(w).Encode(newSession.Fields()); err != nil {
+	if err := json.NewEncoder(w).Encode(newSession.SessionFields()); err != nil {
 		s.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":   r.URL.Path,
 			"remote": r.RemoteAddr,
@@ -242,8 +253,12 @@ func (s Sessions) Login(w http.ResponseWriter, r *http.Request, params map[strin
 /* Service API
 	HTTP Method: DELETE
 	Request:
-		Path: /sessions/:user_id
-		Body: None
+		Path: /sessions/logout/
+		Body:
+			{
+				"user_id": "",
+				"token": ""
+			}
 
    Response: (Success, 201)
 		Body: None
@@ -258,32 +273,57 @@ func (s Sessions) Login(w http.ResponseWriter, r *http.Request, params map[strin
 */
 func (s Sessions) Logout(w http.ResponseWriter, r *http.Request, params map[string]string) {
 	defer s.Log.Emit(sinks.Info("Delete Existing Session").WithFields(sink.Fields{
-		"remote":  r.RemoteAddr,
-		"params":  params,
-		"path":    r.URL.Path,
-		"user_id": params["user_id"],
+		"remote": r.RemoteAddr,
+		"params": params,
+		"path":   r.URL.Path,
 	}).Trace("Sessions.Logout").End())
 
-	userID, ok := params["user_id"]
-	if !ok {
-		err := errors.New("Expected Session `user_id` as param")
+	var nw session.EndSession
+
+	defer r.Body.Close()
+
+	if err := json.NewDecoder(r.Body).Decode(&nw); err != nil {
 		s.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":    r.URL.Path,
 			"remote":  r.RemoteAddr,
 			"params":  params,
-			"user_id": params["user_id"],
+			"user_id": nw.UserID,
 		}))
 
-		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read param", err), http.StatusInternalServerError)
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to read body", err), http.StatusInternalServerError)
 		return
 	}
 
-	if err := s.Sessions.Delete(userID); err != nil {
+	nus, err := s.Sessions.Get(nw.UserID)
+	if err != nil {
 		s.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"path":    r.URL.Path,
 			"remote":  r.RemoteAddr,
 			"params":  params,
-			"user_id": params["user_id"],
+			"user_id": nw.UserID,
+		}))
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve user's session", err), http.StatusInternalServerError)
+	}
+
+	if !nus.ValidateToken(nw.Token) {
+		err := errors.New("Invalid User session tokens")
+		s.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"path":    r.URL.Path,
+			"remote":  r.RemoteAddr,
+			"params":  params,
+			"user_id": nw.UserID,
+		}))
+
+		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to validate user's session", err), http.StatusInternalServerError)
+		return
+	}
+
+	if err := s.Sessions.Delete(nw.UserID); err != nil {
+		s.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
+			"path":    r.URL.Path,
+			"remote":  r.RemoteAddr,
+			"params":  params,
+			"user_id": nw.UserID,
 		}))
 
 		http.Error(w, utils.ErrorMessage(http.StatusInternalServerError, "Failed to retrieve user", err), http.StatusInternalServerError)
