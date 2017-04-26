@@ -11,4 +11,4 @@ ENV MYSQL_DATABASE midash
 ENV MYSQL_PASSWORD !thunder#bot
 ENV MYSQL_DAEMONIZE true
 
-CMD ["/bin/midash"]
+CMD ["midash"]

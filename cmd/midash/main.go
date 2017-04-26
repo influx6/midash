@@ -24,13 +24,15 @@ import (
 // contains different environment flags for use to setting up
 // a db connection.
 const (
-	PortEnv       = "PORT"
-	APIVersionENV = "API_Version"
-	DBPortEnv     = "MYSQL_PORT"
-	DBIPEnv       = "MYSQL_IP"
-	DBUserEnv     = "MYSQL_USER"
-	DBDatabaseEnv = "MYSQL_DATABASE"
-	DBUserPassEnv = "MYSQL_PASSWORD"
+	PortEnv            = "PORT"
+	APIVersionENV      = "API_Version"
+	DBPortEnv          = "MYSQL_PORT"
+	DBIPEnv            = "MYSQL_IP"
+	DBUserEnv          = "MYSQL_USER"
+	DBDatabaseEnv      = "MYSQL_DATABASE"
+	DBUserPassEnv      = "MYSQL_PASSWORD"
+	GoogleClientID     = "GOOGLE_CLIENT_ID"
+	GoogleClientSecret = "GOOGLE_CLIENT_SECRET"
 )
 
 var (

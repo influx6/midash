@@ -19,4 +19,4 @@ ENV MYSQL_DAEMONIZE true
 ENV PORT 7080
 EXPOSE 7080
 
-CMD ["/bin/midash"]
+CMD ["midash"]
