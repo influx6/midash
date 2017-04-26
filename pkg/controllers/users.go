@@ -228,6 +228,7 @@ func (u Users) GetAll(w http.ResponseWriter, r *http.Request, params map[string]
 		{
 			"public_id":"",
 			"email":"",
+			"profile":"optional",
 		}
 
    Response: (Failure, 500)

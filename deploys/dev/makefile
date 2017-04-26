@@ -11,10 +11,10 @@ clean:
 	docker rmi $(USER)/midash-dev
 
 run: build
-	docker run --name $(USER)-midash --rm --env-file vars.env -d $(USER)/midash-dev
+	docker run --rm --env-file vars.env --name $(USER)-midash -d $(USER)/midash-dev
 
 stop:
 	docker kill $(USER)-midash
 
 shell: build
-	docker run -it --rm --env-file  vars.env $(USER)/midash-dev /bin/sh
+	docker run -it --rm --env-file vars.env $(USER)/midash-dev /bin/sh

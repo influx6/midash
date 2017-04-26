@@ -23,6 +23,12 @@ type Profiles struct {
 // GetForUser handles receiving requests to get a user's profile from the backend.
 /* Service API
 	HTTP Method: GET
+	Header:
+			{
+				"Authorization":"Bearer <TOKEN>",
+			}
+
+			WHERE: <TOKEN> = <USERID>:<SESSIONTOKEN>
 
 	Request:
 		Path: /profile/users/:user_id

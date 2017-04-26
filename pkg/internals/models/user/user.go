@@ -96,12 +96,18 @@ func (u User) SafeFields() map[string]interface{} {
 
 // Fields returns a map representing the data of the user.
 func (u User) Fields() map[string]interface{} {
-	return map[string]interface{}{
+	fields := map[string]interface{}{
 		"hash":       u.Hash,
 		"email":      u.Email,
 		"private_id": u.PrivateID,
 		"public_id":  u.PublicID,
 	}
+
+	if u.Profile != nil {
+		fields["profile"] = u.Profile.Fields()
+	}
+
+	return fields
 }
 
 // ChangePassword uses the provided password to set the users password hash.

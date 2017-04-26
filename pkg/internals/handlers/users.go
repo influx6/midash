@@ -11,33 +11,29 @@ import (
 
 // Users exposes a central handle for which requests are served to all requests.
 type Users struct {
-	DB  db.DB
-	Log sink.Sink
+	DB            db.DB
+	Log           sink.Sink
+	Profiles      *Profiles
+	TableIdentity db.TableIdentity
 }
 
 // Delete handles receiving requests to delete a user from the database.
 func (u Users) Delete(id string) error {
 	defer u.Log.Emit(sinks.Info("Get Existing User").With("user_id", id).Trace("handlers.Users.Create").End())
 
-	dbi, err := u.DB.New()
-	if err != nil {
+	if err := u.DB.Delete(u.Log, u.TableIdentity, "public_id", id); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
 		return err
 	}
 
-	defer dbi.Close()
+	var err error
 
-	var nu user.User
-	if err := db.Delete(u.Log, dbi, nu, "public_id", id); err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
-		return err
-	}
-
-	// Add user profile.
-	profiles := Profiles{Log: u.Log, DB: u.DB}
-	if err = profiles.DeleteByUser(id); err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
-		return err
+	// Delete user profile.
+	if u.Profiles != nil {
+		if err = u.Profiles.DeleteByUser(id); err != nil {
+			u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
+			return err
+		}
 	}
 
 	return nil
@@ -47,27 +43,22 @@ func (u Users) Delete(id string) error {
 func (u Users) Get(id string) (*user.User, error) {
 	defer u.Log.Emit(sinks.Info("Get Existing User").With("user_id", id).Trace("handlers.Users.Create").End())
 
-	dbi, err := u.DB.New()
-	if err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
-		return nil, err
-	}
-
-	defer dbi.Close()
-
 	var nu user.User
 
-	if err := db.Get(u.Log, dbi, nu, &nu, "public_id", id); err != nil {
+	if err := u.DB.Get(u.Log, u.TableIdentity, &nu, "public_id", id); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
 		return nil, err
 	}
 
-	// Add user profile.
-	profiles := Profiles{Log: u.Log, DB: u.DB}
-	nu.Profile, err = profiles.GetByUser(nu.PublicID)
-	if err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
-		return nil, err
+	var err error
+
+	// Get user profile.
+	if u.Profiles != nil {
+		nu.Profile, err = u.Profiles.GetByUser(nu.PublicID)
+		if err != nil {
+			u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"public_id": id}))
+			return nil, err
+		}
 	}
 
 	return &nu, nil
@@ -77,19 +68,22 @@ func (u Users) Get(id string) (*user.User, error) {
 func (u Users) GetByEmail(email string) (*user.User, error) {
 	defer u.Log.Emit(sinks.Info("Get Existing User").With("user_email", email).Trace("handlers.Users.Create").End())
 
-	dbi, err := u.DB.New()
-	if err != nil {
+	var nu user.User
+
+	if err := u.DB.Get(u.Log, u.TableIdentity, &nu, "email", email); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_email": email}))
 		return nil, err
 	}
 
-	defer dbi.Close()
+	var err error
 
-	var nu user.User
-
-	if err := db.Get(u.Log, dbi, nu, &nu, "email", email); err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_email": email}))
-		return nil, err
+	// Get user profile.
+	if u.Profiles != nil {
+		nu.Profile, err = u.Profiles.GetByUser(nu.PublicID)
+		if err != nil {
+			u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"user_email": email}))
+			return nil, err
+		}
 	}
 
 	return &nu, nil
@@ -111,20 +105,7 @@ func (u Users) GetAll(page, responsePerPage int) (UserRecords, error) {
 		"responsePerPage": responsePerPage,
 	}).Trace("handlers.Users.Create").End())
 
-	dbi, err := u.DB.New()
-	if err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"page":            page,
-			"responsePerPage": responsePerPage,
-		}))
-
-		return UserRecords{}, err
-	}
-
-	defer dbi.Close()
-
-	var nu user.User
-	records, realTotalRecords, err := db.GetAllPerPage(u.Log, dbi, nu, "asc", "public_id", page, responsePerPage)
+	records, realTotalRecords, err := u.DB.GetAllPerPage(u.Log, u.TableIdentity, "asc", "public_id", page, responsePerPage)
 	if err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"page":            page,
@@ -168,27 +149,18 @@ func (u Users) Create(nw user.NewUser) (*user.User, error) {
 		return nil, err
 	}
 
-	dbi, err := u.DB.New()
-	if err != nil {
+	if err := u.DB.Save(u.Log, u.TableIdentity, newUser); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"email": nw.Email}))
 		return nil, err
 	}
-
-	defer dbi.Close()
-
-	if err := db.Save(u.Log, dbi, newUser); err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"email": nw.Email}))
-		return nil, err
-	}
-
-	dbi.Close()
 
 	// Add user profile.
-	profiles := Profiles{Log: u.Log, DB: u.DB}
-	newUser.Profile, err = profiles.Create(newUser, nil)
-	if err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"email": nw.Email}))
-		return nil, err
+	if u.Profiles != nil {
+		newUser.Profile, err = u.Profiles.Create(newUser, nil)
+		if err != nil {
+			u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{"email": nw.Email}))
+			return nil, err
+		}
 	}
 
 	return newUser, nil
@@ -229,19 +201,9 @@ func (u Users) UpdatePassword(nw user.UpdateUserPassword) error {
 	// 	return
 	// }
 
-	dbi, err := u.DB.New()
-	if err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"user_id": nw.PublicID,
-		}))
-
-		return err
-	}
-	defer dbi.Close()
-
 	var dbUser user.User
 
-	if err := db.Get(u.Log, dbi, dbUser, &dbUser, "public_id", nw.PublicID); err != nil {
+	if err := u.DB.Get(u.Log, u.TableIdentity, &dbUser, "public_id", nw.PublicID); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"user_id": nw.PublicID,
 		}))
@@ -257,7 +219,7 @@ func (u Users) UpdatePassword(nw user.UpdateUserPassword) error {
 		return err
 	}
 
-	if err := db.Update(u.Log, dbi, &dbUser, "public_id"); err != nil {
+	if err := u.DB.Update(u.Log, u.TableIdentity, &dbUser, "public_id"); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"user_id": nw.PublicID,
 		}))
@@ -282,18 +244,7 @@ func (u Users) Update(nw user.UpdateUser) error {
 		return err
 	}
 
-	dbi, err := u.DB.New()
-	if err != nil {
-		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
-			"user_id": nw.PublicID,
-			"email":   nw.Email,
-		}))
-
-		return err
-	}
-	defer dbi.Close()
-
-	if err := db.Update(u.Log, dbi, nw, "public_id"); err != nil {
+	if err := u.DB.Update(u.Log, u.TableIdentity, nw, "public_id"); err != nil {
 		u.Log.Emit(sinks.Error(err).WithFields(sink.Fields{
 			"user_id": nw.PublicID,
 			"email":   nw.Email,

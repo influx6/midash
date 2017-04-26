@@ -34,7 +34,7 @@ type EndSession struct {
 
 // Session defines a struct which holds the the details of a giving user session.
 type Session struct {
-	UserID   string    `json:"user_public_id"`
+	UserID   string    `json:"user_id"`
 	PublicID string    `json:"public_id"`
 	Token    string    `json:"token"`
 	Expires  time.Time `json:"expires"`
@@ -95,10 +95,10 @@ func (u Session) SessionFields() map[string]interface{} {
 // Fields returns a map representing the data of the session.
 func (u Session) Fields() map[string]interface{} {
 	return map[string]interface{}{
-		"user_public_id": u.UserID,
-		"token":          u.Token,
-		"public_id":      u.PublicID,
-		"expires":        u.Expires.Format(time.RFC3339),
+		"user_id":   u.UserID,
+		"token":     u.Token,
+		"public_id": u.PublicID,
+		"expires":   u.Expires.Format(time.RFC3339),
 	}
 }
 

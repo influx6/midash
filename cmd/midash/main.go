@@ -12,7 +12,10 @@ import (
 	"github.com/dimfeld/httptreemux"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gu-io/midash/pkg/controllers" // loads up the go mysql driver.
+	"github.com/gu-io/midash/pkg/db"
+	"github.com/gu-io/midash/pkg/db/sql"
 	"github.com/gu-io/midash/pkg/internals/handlers"
+	"github.com/gu-io/midash/pkg/migrations"
 	"github.com/influx6/faux/sink"
 	"github.com/influx6/faux/sink/sinks"
 	"github.com/jmoiron/sqlx"
@@ -77,14 +80,19 @@ func main() {
 	port := strings.TrimSpace(os.Getenv(PortEnv))
 	addr := fmt.Sprintf(":%s", port)
 
-	var dj djDB
-
 	tree := httptreemux.New()
 
+	sqlDB := sql.New(log, djDB{}, migrations.Users, migrations.Sessions, migrations.Profiles)
 	users := controllers.Users{
 		Users: handlers.Users{
-			DB:  dj,
-			Log: log,
+			DB:            sqlDB,
+			Log:           log,
+			TableIdentity: db.TableName{Name: "users"},
+			Profiles: &handlers.Profiles{
+				DB:            sqlDB,
+				Log:           log,
+				TableIdentity: db.TableName{Name: "profiles"},
+			},
 		},
 	}
 

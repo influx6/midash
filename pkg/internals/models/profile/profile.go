@@ -54,7 +54,7 @@ func (u UpdateProfile) Fields() map[string]interface{} {
 // Profile defines a struct which holds the the details of a giving user's profile.
 type Profile struct {
 	Address   string `json:"address"`
-	UserID    string `json:"user_public_id"`
+	UserID    string `json:"user_id"`
 	PublicID  string `json:"public_id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
@@ -76,7 +76,7 @@ func (Profile) Table() string {
 // WithFields attempts to syncing the giving data within the provided
 // map into it's own fields.
 func (u *Profile) WithFields(fields map[string]interface{}) error {
-	if user, ok := fields["user_public_id"].(string); ok {
+	if user, ok := fields["user_id"].(string); ok {
 		u.UserID = user
 	}
 
@@ -102,10 +102,10 @@ func (u *Profile) WithFields(fields map[string]interface{}) error {
 // Fields returns a map representing the data of the session.
 func (u *Profile) Fields() map[string]interface{} {
 	return map[string]interface{}{
-		"address":        u.Address,
-		"user_public_id": u.UserID,
-		"first_name":     u.FirstName,
-		"last_name":      u.LastName,
-		"public_id":      u.PublicID,
+		"address":    u.Address,
+		"user_id":    u.UserID,
+		"first_name": u.FirstName,
+		"last_name":  u.LastName,
+		"public_id":  u.PublicID,
 	}
 }
