@@ -6,19 +6,20 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/dimfeld/httptreemux"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/gu-io/midash/pkg/controllers" // loads up the go mysql driver.
-	"github.com/gu-io/midash/pkg/db"
-	"github.com/gu-io/midash/pkg/db/sql"
-	"github.com/gu-io/midash/pkg/internals/handlers"
-	"github.com/gu-io/midash/pkg/migrations"
+	_ "github.com/go-sql-driver/mysql" // loads up the go mysql driver.
+	"github.com/influx6/backoffice/db"
+	"github.com/influx6/backoffice/db/sql"
+	"github.com/influx6/backoffice/handlers"
+	"github.com/influx6/backoffice/migrations/sqltables"
+	"github.com/influx6/backoffice/resources"
+	"github.com/influx6/faux/naming"
 	"github.com/influx6/faux/sink"
 	"github.com/influx6/faux/sink/sinks"
-	"github.com/jmoiron/sqlx"
 )
 
 // contains different environment flags for use to setting up
@@ -36,41 +37,14 @@ const (
 )
 
 var (
-	log = sink.New(sinks.Stdout{})
+	user     = strings.TrimSpace(os.Getenv(DBUserEnv))
+	userPass = strings.TrimSpace(os.Getenv(DBUserPassEnv))
+	ip       = strings.TrimSpace(os.Getenv(DBIPEnv))
+	dbName   = strings.TrimSpace(os.Getenv(DBDatabaseEnv))
 )
 
-type djDB struct{}
-
-// New returns a new instance of a sqlx.DB connected to the db with the provided
-// credentials pulled from the host environment.
-func (djDB) New() (*sqlx.DB, error) {
-	user := strings.TrimSpace(os.Getenv(DBUserEnv))
-	userPass := strings.TrimSpace(os.Getenv(DBUserPassEnv))
-	port := strings.TrimSpace(os.Getenv(DBPortEnv))
-	ip := strings.TrimSpace(os.Getenv(DBIPEnv))
-	dbName := strings.TrimSpace(os.Getenv(DBDatabaseEnv))
-
-	if ip == "" {
-		ip = "0.0.0.0"
-	}
-
-	addr := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", user, userPass, ip, port, dbName)
-	db, err := sqlx.Connect("mysql", addr)
-	if err != nil {
-		log.Emit(sinks.Error("Failed to connect to SQLServer: %+q", err).WithFields(sink.Fields{
-			"mysql_ip":   ip,
-			"mysql_port": port,
-			"dbName":     dbName,
-			"user":       user,
-		}))
-
-		return nil, err
-	}
-
-	return db, nil
-}
-
 func main() {
+	log := sink.New(sinks.Stdout{})
 
 	// Get API version.
 	version := strings.TrimSpace(os.Getenv(APIVersionENV))
@@ -78,37 +52,74 @@ func main() {
 		version = "v1"
 	}
 
-	// Get the App port.
-	port := strings.TrimSpace(os.Getenv(PortEnv))
-	addr := fmt.Sprintf(":%s", port)
+	port, _ := strconv.Atoi(strings.TrimSpace(os.Getenv(DBPortEnv)))
+
+	// Created Namer and sql connection creator.
+	appNamer := naming.NewNamer("%s_%s", naming.PrefixNamer{Prefix: "midash"})
+
+	sqlDB := sql.New(log, sql.Conn{
+		User:     user,
+		Password: userPass,
+		Addr:     ip,
+		Port:     port,
+		Database: dbName,
+		Log:      log,
+		Driver:   "mysql",
+	}, sqltables.BasicTables(appNamer)...)
+
+	// Create table namers which tell the models which database table to use.
+	usersTable := db.TableName{Name: appNamer.New("users")}
+	profilesTable := db.TableName{Name: appNamer.New("profiles")}
+	sessionsTable := db.TableName{Name: appNamer.New("sessions")}
+
+	// Create the resources model handlers we need to handle.
+	sessionModels := handlers.SessionsFactory(log, sqlDB, 72*time.Hour, sessionsTable)
+	profileModels := handlers.ProfilesFactory(log, sqlDB, profilesTable)
+	userModels := handlers.UsersFactory(log, sqlDB, usersTable, profilesTable)
+	auth := handlers.BearerAuth{Users: userModels, Sessions: sessionModels}
+
+	// Create API resources request handlers
+	users := resources.Users{Users: userModels}
+	sessions := resources.Sessions{Sessions: sessionModels, Users: userModels}
+	profiles := resources.Profiles{Users: userModels, Sessions: sessionModels, Profiles: profileModels}
 
 	tree := httptreemux.New()
-
-	sqlDB := sql.New(log, djDB{}, migrations.Users, migrations.Sessions, migrations.Profiles)
-	users := controllers.Users{
-		Users: handlers.Users{
-			DB:            sqlDB,
-			Log:           log,
-			TableIdentity: db.TableName{Name: "users"},
-			Profiles: &handlers.Profiles{
-				DB:            sqlDB,
-				Log:           log,
-				TableIdentity: db.TableName{Name: "profiles"},
-			},
-		},
-	}
-
 	tree.Handle("GET", "/", index)
 	tree.Handle("GET", fmt.Sprintf("/%s", version), welcome(version))
 
-	tree.Handle("GET", fmt.Sprintf("/%s/users", version), users.GetAll)
-	tree.Handle("POST", fmt.Sprintf("/%s/users", version), users.Create)
-	tree.Handle("PUT", fmt.Sprintf("/%s/users/:user_id", version), users.Update)
-	tree.Handle("GET", fmt.Sprintf("/%s/users/:user_id", version), users.Get)
-	tree.Handle("PUT", fmt.Sprintf("/%s/users/password/:user_id", version), users.UpdatePassword)
+	// Set up sessions related routes.
+	tree.Handle("POST", fmt.Sprintf("/%s/%s", version, "sessions/login"), sessions.Login)
+	tree.Handle("POST", fmt.Sprintf("/%s/%s", version, "sessions/logout"), sessions.Logout)
+
+	// Set up users related routes.
+	tree.Handle("GET", fmt.Sprintf("/%s/%s", version, "users"), users.GetAll)
+	tree.Handle("GET", fmt.Sprintf("/%s/%s", version, "users/:total/:page"), users.GetAll)
+
+	tree.Handle("POST", fmt.Sprintf("/%s/%s", version, "users"), users.Create)
+	tree.Handle("GET", fmt.Sprintf("/%s/%s", version, "users/:public_id"), users.GetLimited)
+
+	// Set up profiles related routes.
+	tree.Handle("PUT", fmt.Sprintf("/%s/%s", version, "profiles"), resources.Auth{
+		BearerAuth: auth,
+		Next:       profiles.Update,
+	}.CheckAuthorization)
+
+	tree.Handle("GET", fmt.Sprintf("/%s/%s", version, "profiles/:public_id"), resources.Auth{
+		BearerAuth: auth,
+		Next:       profiles.Get,
+	}.CheckAuthorization)
+
+	tree.Handle("GET", fmt.Sprintf("/%s/%s", version, "profiles/users/:user_id"), resources.Auth{
+		BearerAuth: auth,
+		Next:       profiles.GetForUser,
+	}.CheckAuthorization)
 
 	cm := make(chan os.Signal, 1)
 	signal.Notify(cm, os.Interrupt)
+
+	// Get the App port.
+	appPort := strings.TrimSpace(os.Getenv(PortEnv))
+	addr := fmt.Sprintf(":%s", appPort)
 
 	srv := &http.Server{Addr: addr, Handler: tree}
 

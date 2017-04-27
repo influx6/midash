@@ -11,6 +11,7 @@ MAINTAINER Alexander Ewetumo <trinoxf@gmail.com>
 # this here.
 ENV API_VERSION v1
 ENV MYSQL_USER dbUser
+ENV MYSQL_IP "0.0.0.0"
 ENV MYSQL_DATABASE midash
 ENV MYSQL_PASSWORD !thunder#bot
 ENV MYSQL_DAEMONIZE true
